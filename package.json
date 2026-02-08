@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Bot tradicional com menu interativo para atacado de alimentos",
   "main": "dist/src/app.js",
-  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
