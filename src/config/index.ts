@@ -41,7 +41,7 @@ const config = {
   // Banco de Dados (SQL Server)
   // ==================================================
   database: {
-    host: process.env.SQL_SERVER_HOST,
+    host: process.env.SQL_SERVER_HOST || 'localhost',
     port: parseInt(process.env.SQL_SERVER_PORT || '1433', 10),
     database: process.env.SQL_SERVER_DATABASE || 'BonnaVittaBot',
     username: process.env.SQL_SERVER_USERNAME || 'sa',

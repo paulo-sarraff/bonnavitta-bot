@@ -1,10 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { authService } from '../services/auth.service.js';
 import logger from '../utils/logger.js';
-
-export interface AuthRequest extends Request {
-  user?: any;
-}
+import { AuthRequest } from '../types/auth-request.js';
 
 /**
  * Middleware para validar token JWT
@@ -156,3 +153,5 @@ export const equipeMiddleware = (req: AuthRequest, res: Response, next: NextFunc
     });
   }
 };
+export { AuthRequest };
+
