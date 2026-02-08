@@ -3,8 +3,16 @@ import { Request } from 'express';
 export interface AuthRequest extends Request {
   user?: {
     id: number;
+    cpf: string;
+    nome: string;
     email: string;
-    role: string;
-    equipeId: number
+    telefone: string;
+    equipeId: number;
+    nomeEquipe: string;
+    role: 'gerente' | 'vendedor' | 'admin';
+    ativo: boolean;
   };
+  body: any;
+  headers: any;
+  query: any;
 }

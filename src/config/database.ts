@@ -23,9 +23,8 @@ export async function initializeDatabase(): Promise<ConnectionPool> {
 
     pool = new sql.ConnectionPool(sqlServerConfig);
 
-    pool.on('error', (err) => {
-      logger.error('Database pool error:', err);
-      pool = null;
+    pool.on('error', (err: Error) => {
+      logger.error('Erro no pool de conexões:', err);
     });
 
     await pool.connect();

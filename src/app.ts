@@ -36,7 +36,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Logging
-app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
+app.use(morgan('combined', { stream: { write: (msg: string) => logger.info(msg.trim()) } }));
 
 // ============================================
 // Health Check
