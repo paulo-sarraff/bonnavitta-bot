@@ -12,7 +12,7 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
 
-    "types": ["node", "express"],
+    "types": ["node"],
 
     "sourceMap": true,
     "declaration": true,
