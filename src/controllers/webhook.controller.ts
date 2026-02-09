@@ -30,7 +30,24 @@ export class WebhookController {
       logger.info(`Mensagem Telegram de ${nomeUsuario} (${usuarioId}): ${texto}`);
 
       // Processar mensagem
-      //const _resultado = await botController.processarMensagem(
+      res.sendStatus(200); // RESPONDE IMEDIATO AO TELEGRAM
+
+      const fakeRes: any = {
+        status: () => fakeRes,
+        json: async (data: any) => {
+          if (!data?.resposta) return;
+
+          // 1️⃣ Texto principal
+          await telegramService.enviarMensagem(chatId, data.resposta);
+
+          // 2️⃣ Opções de menu
+          if (Array.isArray(data.opcoes) && data.opcoes.length > 0) {
+            const menuTexto = data.opcoes.join('\n');
+            await telegramService.enviarMensagem(chatId, menuTexto);
+          }
+        },
+      };
+
       await botController.processarMensagem(
         {
           body: {
@@ -40,16 +57,8 @@ export class WebhookController {
             mensagem: texto,
           },
         } as any,
-        {
-          status: () => ({ json: () => {} }),
-          json: () => {},
-        } as any
-      );
+        fakeRes);
 
-      // Enviar resposta via Telegram
-      await telegramService.enviarMensagem(chatId, 'Processando sua solicitação...');
-
-      res.status(200).json({ ok: true });
     } catch (error) {
       logger.error('Erro no webhook do Telegram:', error);
       res.status(500).json({ ok: false });

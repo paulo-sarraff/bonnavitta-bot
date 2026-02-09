@@ -14,10 +14,10 @@ export class BotController {
    */
   async processarMensagem(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { canal, chatId, mensagem } = req.body;
-      const usuarioId = req.user?.id;  // ✅ Vem do token JWT
+      const { canal, chatId, mensagem, usuarioId } = req.body;
 
-      if (!usuarioId || !canal || !chatId || !mensagem) {
+      if (!canal || !chatId || !mensagem || !usuarioId) {
+
         res.status(400).json({
           success: false,
           mensagem: 'usuarioId, canal, chatId e mensagem são obrigatórios',
@@ -28,18 +28,23 @@ export class BotController {
       logger.info(`Mensagem recebida de ${usuarioId}: ${mensagem}`);
 
       // Obter ou criar sessão
-      let sessao = await sessionService.obterSessao(chatId, canal as 'telegram' | 'whatsapp');
+      let sessao = await sessionService.obterSessao(
+        chatId,
+        canal as 'telegram' | 'whatsapp'
+      );
 
       if (!sessao) {
-        // Criar nova sessão
-        sessao = await sessionService.criarSessao(usuarioId, canal as 'telegram' | 'whatsapp', chatId, '');
-        if (!sessao) {
-          res.status(500).json({
-            success: false,
-            mensagem: 'Erro ao criar sessão',
-          });
-          return;
-        }
+        sessao = await sessionService.criarSessao(
+          usuarioId,
+          canal as 'telegram' | 'whatsapp',
+          chatId,
+          EstadoBot.MENU_PRINCIPAL
+        );
+      }
+
+      if (!sessao) {
+        // segurança extra — nunca deveria acontecer
+        throw new Error('Falha ao obter ou criar sessão do usuário');
       }
 
       // Processar resposta baseado no estado atual
