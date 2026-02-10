@@ -46,7 +46,8 @@ class BotFlowService {
       opcoes: [
         { id: 'supervisor', texto: 'Vendas por Supervisor', emoji: '👔' },
         { id: 'vendedor', texto: 'Vendas por Vendedor', emoji: '👥' },
-        { id: 'equipe', texto: 'Vendas por Equipe', emoji: '🏢' },
+        { id: 'equipe', texto: 'Vendas por Equipe', emoji: '🤝' },
+        { id: 'fabricante', texto: 'Vendas por Fabricante', emoji: '🏢' },
         { id: 'voltar', texto: 'Voltar', emoji: '🔙' },
       ],
       proximoEstado: EstadoBot.AGUARDANDO_TIPO_CONSULTA,
