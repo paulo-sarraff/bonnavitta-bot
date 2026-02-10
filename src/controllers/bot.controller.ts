@@ -6,28 +6,26 @@ import { vendasService } from '../services/vendas.service.js';
 import { chartService } from '../services/chart.service.js';
 import logger from '../utils/logger.js';
 import { EstadoBot } from '../models/schemas.js';
+import { BotProcessResult } from '../models/bot-response.js';
 
 export class BotController {
   /**
    * Processar mensagem do usuário
    * POST /api/bot/message
    */
-  async processarMensagem(req: AuthRequest, res: Response): Promise<void> {
+  async processarMensagem(req: AuthRequest): Promise<BotProcessResult> {
     try {
-      const { canal, chatId, mensagem, usuarioId } = req.body;
+      const { canal, chatId, mensagem, usuarioId } = req.body ?? {};
 
       if (!canal || !chatId || !mensagem || !usuarioId) {
-
-        res.status(400).json({
-          success: false,
-          mensagem: 'usuarioId, canal, chatId e mensagem são obrigatórios',
-        });
-        return;
+        throw new Error('canal, chatId, mensagem e usuarioId são obrigatórios');
       }
 
       logger.info(`Mensagem recebida de ${usuarioId}: ${mensagem}`);
 
+      // =========================
       // Obter ou criar sessão
+      // =========================
       let sessao = await sessionService.obterSessao(
         chatId,
         canal as 'telegram' | 'whatsapp'
@@ -47,71 +45,89 @@ export class BotController {
         throw new Error('Falha ao obter ou criar sessão do usuário');
       }
 
+      // =========================
       // Processar resposta baseado no estado atual
-      const resultado = await botFlowService.processarResposta(
+      // =========================
+      const resultadoFluxo = await botFlowService.processarResposta(
         mensagem,
         (sessao.estadoAtual as EstadoBot) || EstadoBot.MENU_PRINCIPAL,
         sessao.dadosContexto || {}
       );
 
       // Atualizar estado da sessão
-      await sessionService.atualizarEstado(sessao.id, resultado.proximoEstado, resultado.contextoAtualizado);
+      await sessionService.atualizarEstado(
+        sessao.id,
+        resultadoFluxo.proximoEstado,
+        resultadoFluxo.contextoAtualizado
+      );
 
-      // Se precisa processar dados (estado PROCESSANDO)
+      // =========================
+      // Processamento de consulta (estado PROCESSANDO)
+      // =========================
       let grafico: string | null = null;
-      if (resultado.proximoEstado === EstadoBot.PROCESSANDO) {
-        const resposta = await this.processarConsulta(resultado.contextoAtualizado);
-        resultado.resposta.resposta = resposta.texto;
-        grafico = resposta.grafico;
+      let respostaFinal = resultadoFluxo.resposta.resposta;
+
+      if (resultadoFluxo.proximoEstado === EstadoBot.PROCESSANDO) {
+        const respostaConsulta = await this.processarConsulta(
+          resultadoFluxo.contextoAtualizado
+        );
+
+        respostaFinal = respostaConsulta.texto;
+        grafico = respostaConsulta.grafico;
 
         // Atualizar para estado de exibição de resultado
-        resultado.proximoEstado = EstadoBot.EXIBINDO_RESULTADO;
-        await sessionService.atualizarEstado(sessao.id, resultado.proximoEstado, resultado.contextoAtualizado);
+        await sessionService.atualizarEstado(
+          sessao.id,
+          EstadoBot.EXIBINDO_RESULTADO,
+          resultadoFluxo.contextoAtualizado
+        );
+
+        resultadoFluxo.proximoEstado = EstadoBot.EXIBINDO_RESULTADO;
       }
 
       logger.info(`Resposta enviada para ${usuarioId}`);
 
-      res.status(200).json({
-        success: true,
-        resposta: resultado.resposta.resposta,
-        opcoes: resultado.resposta.opcoes,
+      // =========================
+      // Retorno PADRONIZADO para webhook
+      // =========================
+      return {
+        resposta: respostaFinal,
+        opcoes: resultadoFluxo.resposta.opcoes,
         grafico,
-        proximoEstado: resultado.proximoEstado,
-      });
+        proximoEstado: resultadoFluxo.proximoEstado,
+      };
     } catch (error) {
       logger.error('Erro ao processar mensagem:', error);
-      res.status(500).json({
-        success: false,
-        mensagem: 'Erro ao processar mensagem',
-      });
+
+      return {
+        resposta: 'Erro ao processar mensagem',
+        proximoEstado: EstadoBot.MENU_PRINCIPAL,
+      };
     }
   }
 
   /**
    * Processar consulta de vendas - Alinhado com as 8 procedures
    */
-  private async processarConsulta(contexto: any): Promise<{ texto: string; grafico: string | null }> {
+  private async processarConsulta(
+    contexto: any
+  ): Promise<{ texto: string; grafico: string | null }> {
     try {
       const { opcaoMenuPrincipal, dataInicio, dataFim, tipoConsulta } = contexto;
 
       // 1. Totalizador de Vendas
       if (opcaoMenuPrincipal === '1') {
-        // 1.1 Vendas por Supervisor
         if (tipoConsulta === 'supervisor') {
           const vendas = await vendasService.getVendasPorSupervisor(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorSupervisor(vendas);
           const grafico = await chartService.gerarGraficoVendasPorSupervisor(vendas);
           return { texto, grafico };
-        }
-        // 1.2 Vendas por Vendedor
-        else if (tipoConsulta === 'vendedor') {
+        } else if (tipoConsulta === 'vendedor') {
           const vendas = await vendasService.getVendasPorVendedor(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorVendedor(vendas);
           const grafico = await chartService.gerarGraficoVendasPorVendedor(vendas);
           return { texto, grafico };
-        }
-        // 1.3 Vendas por Equipe
-        else if (tipoConsulta === 'equipe') {
+        } else if (tipoConsulta === 'equipe') {
           const vendas = await vendasService.getVendasPorEquipe(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorFabricante(vendas);
           const grafico = await chartService.gerarGraficoVendasPorEquipe(vendas);

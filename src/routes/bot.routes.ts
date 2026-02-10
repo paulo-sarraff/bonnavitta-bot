@@ -10,7 +10,7 @@ const router = Router();
  * Enviar mensagem (requer autenticação)
  */
 router.post('/message', validarToken, (req: Request, res: Response) =>
-  botController.processarMensagem(req, res)
+  botController.processarMensagem(req)
 );
 
 export default router;

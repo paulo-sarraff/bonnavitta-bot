@@ -3,77 +3,83 @@ import { telegramService } from '../services/telegram.service.js';
 import { whatsappService } from '../services/whatsapp.service.js';
 import { botController } from './bot.controller.js';
 import logger from '../utils/logger.js';
+import { AuthRequest } from '../types/auth-request.js';
 
 export class WebhookController {
   /**
-   * Webhook do Telegram
+   * =========================
+   * WEBHOOK DO TELEGRAM
    * POST /api/webhook/telegram
+   * =========================
    */
   async telegramWebhook(req: Request, res: Response): Promise<void> {
     try {
       const update = req.body;
 
-      logger.info('Telegram webhook recebido:', JSON.stringify(update));
+      logger.info('📩 Telegram webhook recebido:', JSON.stringify(update));
 
-      // Verificar se é uma mensagem
+      // 👉 O Telegram pode enviar vários tipos de update
+      // Aqui só tratamos mensagens de texto
       if (!update.message) {
-        res.status(200).json({ ok: true });
+        res.sendStatus(200);
         return;
       }
 
-      const { message } = update;
+      const message = update.message;
       const chatId = message.chat.id.toString();
       const texto = message.text || '';
       const usuarioId = message.from.id;
       const nomeUsuario = message.from.first_name;
 
-      logger.info(`Mensagem Telegram de ${nomeUsuario} (${usuarioId}): ${texto}`);
+      logger.info(
+        `👤 Telegram | ${nomeUsuario} (${usuarioId}) disse: ${texto}`
+      );
 
-      // Processar mensagem
-      res.sendStatus(200); // RESPONDE IMEDIATO AO TELEGRAM
+      // ⚠️ MUITO IMPORTANTE:
+      // Respondemos 200 OK IMEDIATAMENTE para o Telegram
+      // para evitar timeout e reenvio da mensagem
+      res.sendStatus(200);
 
-      const fakeRes: any = {
-        status: () => fakeRes,
-        json: async (data: any) => {
-          if (!data?.resposta) return;
-
-          // 1️⃣ Texto principal
-          await telegramService.enviarMensagem(chatId, data.resposta);
-
-          // 2️⃣ Opções de menu
-          if (Array.isArray(data.opcoes) && data.opcoes.length > 0) {
-            const menuTexto = data.opcoes.join('\n');
-            await telegramService.enviarMensagem(chatId, menuTexto);
-          }
+      // =========================
+      // PROCESSAMENTO DO BOT
+      // =========================
+      const resultado = await botController.processarMensagem({
+        body: {
+          usuarioId,
+          canal: 'telegram',
+          chatId,
+          mensagem: texto,
         },
-      };
+      } as AuthRequest);
 
-      await botController.processarMensagem(
-        {
-          body: {
-            usuarioId,
-            canal: 'telegram',
-            chatId,
-            mensagem: texto,
-          },
-        } as any,
-        fakeRes);
 
+      // =========================
+      // ENVIO DA RESPOSTA AO USUÁRIO
+      // =========================
+      if (resultado?.resposta) {
+        const mensagemFormatada = formatarMensagemTelegram(resultado);
+
+        await telegramService.enviarMensagem(
+          chatId,
+          mensagemFormatada
+        );
+      }
     } catch (error) {
-      logger.error('Erro no webhook do Telegram:', error);
-      res.status(500).json({ ok: false });
+      logger.error('❌ Erro no webhook do Telegram:', error);
     }
   }
 
   /**
-   * Verificação do webhook do Telegram
+   * =========================
+   * VERIFICAÇÃO DO TELEGRAM
    * GET /api/webhook/telegram
+   * =========================
    */
   telegramVerify(req: Request, res: Response): void {
     try {
       const token = req.query.token as string;
 
-      logger.info('Verificação de webhook Telegram:', token);
+      logger.info('🔎 Verificação de webhook Telegram');
 
       if (token === process.env.TELEGRAM_BOT_TOKEN) {
         res.status(200).json({ ok: true });
@@ -81,71 +87,73 @@ export class WebhookController {
         res.status(403).json({ ok: false });
       }
     } catch (error) {
-      logger.error('Erro na verificação do webhook Telegram:', error);
+      logger.error('❌ Erro na verificação do Telegram:', error);
       res.status(500).json({ ok: false });
     }
   }
 
   /**
-   * Webhook do WhatsApp
+   * =========================
+   * WEBHOOK DO WHATSAPP
    * POST /api/webhook/whatsapp
+   * =========================
    */
   async whatsappWebhook(req: Request, res: Response): Promise<void> {
     try {
       const body = req.body;
 
-      logger.info('WhatsApp webhook recebido:', JSON.stringify(body));
+      logger.info('📩 WhatsApp webhook recebido:', JSON.stringify(body));
 
-      // Verificar estrutura
-      if (!body.entry || !body.entry[0] || !body.entry[0].changes) {
+      // 👉 Validação básica da estrutura enviada pela Meta
+      const entry = body.entry?.[0];
+      const change = entry?.changes?.[0];
+      const message = change?.value?.messages?.[0];
+
+      if (!message) {
         res.status(200).json({ status: 'ok' });
         return;
       }
 
-      const changes = body.entry[0].changes[0];
-      const messages = changes.value.messages;
-
-      if (!messages || messages.length === 0) {
-        res.status(200).json({ status: 'ok' });
-        return;
-      }
-
-      const message = messages[0];
       const chatId = message.from;
       const texto = message.text?.body || '';
       const usuarioId = message.from;
 
-      logger.info(`Mensagem WhatsApp de ${chatId}: ${texto}`);
+      logger.info(`👤 WhatsApp | ${chatId} disse: ${texto}`);
 
-      // Processar mensagem
-      await botController.processarMensagem(
-        {
-          body: {
-            usuarioId,
-            canal: 'whatsapp',
-            chatId,
-            mensagem: texto,
-          },
-        } as any,
-        {
-          status: () => ({ json: () => {} }),
-          json: () => {},
-        } as any
-      );
-
-      // Enviar resposta via WhatsApp
-      await whatsappService.enviarMensagem(chatId, 'Processando sua solicitação...');
-
+      // Respondemos OK imediatamente
       res.status(200).json({ status: 'ok' });
+
+      // =========================
+      // PROCESSAMENTO DO BOT
+      // =========================
+      const resultado = await botController.processarMensagem({
+        body: {
+          usuarioId,
+          canal: 'telegram',
+          chatId,
+          mensagem: texto,
+        },
+      } as AuthRequest);
+
+      // =========================
+      // ENVIO DA RESPOSTA AO USUÁRIO
+      // =========================
+      if (resultado?.resposta) {
+        await whatsappService.enviarMensagem(
+          chatId,
+          formatarMensagemWhatsapp(resultado)
+        );
+      }
     } catch (error) {
-      logger.error('Erro no webhook do WhatsApp:', error);
-      res.status(500).json({ status: 'error' });
+      logger.error('❌ Erro no webhook do WhatsApp:', error);
     }
   }
 
   /**
-   * Verificação do webhook do WhatsApp
+   * =========================
+   * VERIFICAÇÃO DO WHATSAPP
    * GET /api/webhook/whatsapp
+   * =========================
    */
   whatsappVerify(req: Request, res: Response): void {
     try {
@@ -153,18 +161,56 @@ export class WebhookController {
       const token = req.query['hub.verify_token'];
       const challenge = req.query['hub.challenge'];
 
-      logger.info('Verificação de webhook WhatsApp');
+      logger.info('🔎 Verificação de webhook WhatsApp');
 
-      if (mode === 'subscribe' && token === process.env.WHATSAPP_WEBHOOK_TOKEN) {
+      if (
+        mode === 'subscribe' &&
+        token === process.env.WHATSAPP_WEBHOOK_TOKEN
+      ) {
         res.status(200).send(challenge);
       } else {
         res.status(403).json({ error: 'Invalid token' });
       }
     } catch (error) {
-      logger.error('Erro na verificação do webhook WhatsApp:', error);
+      logger.error('❌ Erro na verificação do WhatsApp:', error);
       res.status(500).json({ error: 'Internal error' });
     }
   }
+}
+
+/**
+ * =========================
+ * FORMATADORES DE MENSAGEM
+ * =========================
+ */
+
+export function formatarMensagemTelegram(resultado: any): string {
+  let texto = resultado.resposta;
+
+  if (resultado.opcoes?.length) {
+    texto += '\n\n';
+    texto += resultado.opcoes
+      .map(
+        (o: any) =>
+          `${o.emoji ?? '➡️'} *${o.id}* - ${o.texto}`
+      )
+      .join('\n');
+  }
+
+  return texto;
+}
+
+export function formatarMensagemWhatsapp(resultado: any): string {
+  let texto = resultado.resposta;
+
+  if (resultado.opcoes?.length) {
+    texto += '\n\n';
+    texto += resultado.opcoes
+      .map((o: any) => `${o.id} - ${o.texto}`)
+      .join('\n');
+  }
+
+  return texto;
 }
 
 export const webhookController = new WebhookController();
