@@ -46,6 +46,15 @@ interface TicketMedioDados {
   TotalPedidos: number;
 }
 
+interface VendasPorEquipe {
+  NomeEquipe: string;
+  QuantidadePedidos: number;
+  TotalVendas: number;
+  TicketMedio: number;
+  QuantidadeUnidades: number;
+}
+
+
 class VendasService {
   /**
    * Obtém vendas por supervisor em um período
@@ -175,7 +184,7 @@ class VendasService {
   async getVendasPorEquipe(
     dataInicio: string,
     dataFim: string
-  ): Promise<VendasPorFabricante[]> {
+  ): Promise<VendasPorEquipe[]> {
     try {
       const db = await getDatabase();
       const request = new sql.Request(db);
@@ -242,6 +251,30 @@ class VendasService {
       throw error;
     }
   }
+
+    /**
+   * Formata resposta de vendas por equipe
+   */
+  formatarVendasPorEquipe(vendas: VendasPorEquipe[]): string {
+    if (vendas.length === 0) {
+      return 'Nenhum dado encontrado para o período solicitado.';
+    }
+
+    let resposta = `👥 *Totalizador de Vendas por Equipe*\n\n`;
+
+    vendas.forEach((venda) => {
+      resposta += `*${venda.NomeEquipe}*\n`;
+      resposta += `  💰 Total de Vendas: R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
+      resposta += `  🎫 Ticket Médio: R$ ${this.formatarMoeda(venda.TicketMedio)}\n`;
+      resposta += `  📦 Pedidos: ${venda.QuantidadePedidos}\n\n`;
+    });
+
+    const totalGeral = vendas.reduce((sum, v) => sum + v.TotalVendas, 0);
+    resposta += `*💰 TOTAL GERAL: R$ ${this.formatarMoeda(totalGeral)}*\n`;
+
+    return resposta;
+  }
+
 
   /**
    * Formata resposta de vendas por supervisor

@@ -42,6 +42,14 @@ interface RankingProdutoSP {
   TicketMedio: number;
 }
 
+interface VendasPorEquipe {
+  NomeEquipe: string;
+  QuantidadePedidos: number;
+  TotalVendas: number;
+  TicketMedio: number;
+  QuantidadeUnidades: number;
+}
+
 class ChartService {
   private chartsDir: string;
 
@@ -205,14 +213,14 @@ class ChartService {
   /**
    * Gera gráfico de vendas por equipe
    */
-  async gerarGraficoVendasPorEquipe(vendas: VendasPorFabricante[]): Promise<string | null> {
+  async gerarGraficoVendasPorEquipe(vendas: VendasPorEquipe[]): Promise<string | null> {
     try {
       if (!vendas || vendas.length === 0) {
         logger.warn('Nenhum dado de vendas por equipe fornecido');
         return null;
       }
 
-      const labels = vendas.map((v) => v.NomeFabricante);
+      const labels = vendas.map((v) => v.NomeEquipe);
       const valores = vendas.map((v) => v.TotalVendas);
 
       if (!this.validarDados(labels, valores)) {

@@ -129,8 +129,13 @@ export class BotController {
           return { texto, grafico };
         } else if (tipoConsulta === 'equipe') {
           const vendas = await vendasService.getVendasPorEquipe(dataInicio, dataFim);
-          const texto = vendasService.formatarVendasPorFabricante(vendas);
+          const texto = vendasService.formatarVendasPorEquipe(vendas);
           const grafico = await chartService.gerarGraficoVendasPorEquipe(vendas);
+          return { texto, grafico };
+        } else if (tipoConsulta === 'fabricante') {
+          const vendas = await vendasService.getVendasPorFabricante(dataInicio, dataFim);
+          const texto = vendasService.formatarVendasPorFabricante(vendas);
+          const grafico = await chartService.gerarGraficoVendasPorFabricante(vendas);
           return { texto, grafico };
         }
       }
