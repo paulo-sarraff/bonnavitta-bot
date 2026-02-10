@@ -121,8 +121,23 @@ class BotFlowService {
     opcao: string,
     contexto: ContextoDados
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
+
+    // Opções válidas do menu principal
+    const opcoesValidas = ['1', '2', '3', '4', '5'];
+
+    // 👉 PRIMEIRA MENSAGEM ou texto inválido
+    // Apenas reapresenta o menu principal
+    if (!opcoesValidas.includes(opcao)) {
+      return {
+        proximoEstado: EstadoBot.MENU_PRINCIPAL,
+        contextoAtualizado: contexto,
+        resposta: this.getMenuPrincipal(),
+      };
+    }
+
     contexto.opcaoMenuPrincipal = opcao;
 
+    // Encerrar atendimento
     if (opcao === '5') {
       return {
         proximoEstado: EstadoBot.ENCERRADO,
@@ -134,6 +149,7 @@ class BotFlowService {
       };
     }
 
+    // Fluxo normal
     return {
       proximoEstado: EstadoBot.AGUARDANDO_DATA,
       contextoAtualizado: contexto,
