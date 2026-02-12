@@ -1,7 +1,9 @@
 // Usuários cadastrados localmente
 // ⚠️ AVISO: Dados sensíveis em código. Usar apenas para MVP!
 
-export const usuariosCadastrados = [
+import { Usuario } from "../models/schemas";
+
+export const usuariosCadastrados: Usuario[] = [
   {
     id: 1,
     cpf: '77803450253',
@@ -9,19 +11,19 @@ export const usuariosCadastrados = [
     nome: 'Paulo Sarraff',
     email: 'sarraffjr@gmail.com',
     equipeId: 1,
-    nomeEquipe: 'Loja',
-    role: 'gerente',
+    nomeEquipe: 'Administradores',
+    role: 'admin',
     ativo: true,
   },
   {
     id: 2,
-    cpf: '98765432100',
-    telefone: '11912345678',
-    nome: 'Maria Santos',
-    email: 'maria@empresa.com',
+    cpf: '00684932237',
+    telefone: '92988023600',
+    nome: 'Eduardo Grigoletto',
+    email: 'luiz@bonnavitta.com',
     equipeId: 2,
     nomeEquipe: 'Food Service',
-    role: 'vendedor',
+    role: 'diretoria',
     ativo: true,
   },
   {

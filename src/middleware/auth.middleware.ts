@@ -32,6 +32,7 @@ export const validarToken = (
       return;
     }
 
+    logger.info(`Token validado`);
     req.user = decoded;
     next();
   } catch (error) {
