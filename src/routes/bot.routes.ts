@@ -9,8 +9,10 @@ const router = Router();
  * POST /api/bot/message
  * Enviar mensagem (requer autenticação)
  */
-router.post('/message', validarToken, (req: Request, res: Response) =>
-  botController.processarMensagem(req)
-);
+
+router.post('/message', validarToken, (req: Request, res: Response) => {
+  return botController.message(req as any, res);
+});
+
 
 export default router;

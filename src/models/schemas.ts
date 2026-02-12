@@ -10,7 +10,7 @@ export interface Usuario {
   telefone: string;
   equipeId: number;
   nomeEquipe: string;
-  role: string//'admin' | 'gerente' | 'vendedor';
+  role: 'admin' | 'gerente' | 'vendedor' | 'supervisor' | 'diretoria';
   ativo: boolean;
 }
 
@@ -134,6 +134,7 @@ export interface OpçãoMenu {
 // ============================================
 
 export enum EstadoBot {
+  AGUARDANDO_LOGIN = 'aguardando_login',
   MENU_PRINCIPAL = 'menu_principal',
   AGUARDANDO_DATA = 'aguardando_data',
   AGUARDANDO_TIPO_CONSULTA = 'aguardando_tipo_consulta',

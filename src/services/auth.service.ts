@@ -135,33 +135,84 @@ class AuthService {
     }
   }
 
-  /**
-   * Valida autorização por role
+    /**
+   * Valida se o usuário possui uma das roles permitidas
    */
   validarAutorizacao(usuarioRole: string, rolesPermitidos: string[]): boolean {
-    return rolesPermitidos.includes(usuarioRole);
+    try {
+      if (!usuarioRole) {
+        logger.warn('Role do usuário não informada');
+        return false;
+      }
+
+      if (!rolesPermitidos || rolesPermitidos.length === 0) {
+        logger.warn('Nenhuma role permitida foi definida');
+        return false;
+      }
+
+      const autorizado = rolesPermitidos.includes(usuarioRole);
+
+      if (!autorizado) {
+        logger.warn(
+          `Role não autorizada. Role do usuário: ${usuarioRole} | Permitidas: ${rolesPermitidos.join(', ')}`
+        );
+      }
+
+      return autorizado;
+    } catch (error) {
+      logger.error('Erro ao validar autorização:', error);
+      return false;
+    }
   }
 
-  /**
-   * Valida se usuário pode acessar dados de uma equipe
+    /**
+   * Valida se o usuário pode acessar dados de determinada equipe
    */
   validarAcessoEquipe(
     usuarioRole: string,
     usuarioEquipeId: number,
     equipeIdSolicitada: number
   ): boolean {
-    // Admin pode acessar tudo
-    if (usuarioRole === 'admin') {
-      return true;
-    }
+    try {
+      if (!usuarioRole) {
+        logger.warn('Role do usuário não informada para validação de equipe');
+        return false;
+      }
 
-    // Gerente/Vendedor só pode acessar sua própria equipe
-    if (usuarioRole === 'gerente' || usuarioRole === 'vendedor') {
-      return usuarioEquipeId === equipeIdSolicitada;
-    }
+      if (!equipeIdSolicitada) {
+        logger.warn('Equipe solicitada não informada');
+        return false;
+      }
 
-    return false;
+      // Admin pode acessar qualquer equipe
+      if (usuarioRole === 'admin') {
+        return true;
+      }
+
+      // Gerente e vendedor só podem acessar a própria equipe
+      if (usuarioRole === 'gerente' || usuarioRole === 'vendedor') {
+        const permitido = usuarioEquipeId === equipeIdSolicitada;
+
+        if (!permitido) {
+          logger.warn(
+            `Acesso negado. Usuário da equipe ${usuarioEquipeId} tentou acessar equipe ${equipeIdSolicitada}`
+          );
+        }
+
+        return permitido;
+      }
+
+      // Qualquer outro perfil é negado
+      logger.warn(`Role não reconhecida para acesso por equipe: ${usuarioRole}`);
+      return false;
+
+    } catch (error) {
+      logger.error('Erro ao validar acesso por equipe:', error);
+      return false;
+    }
   }
+
+
 }
 
 export const authService = new AuthService();
