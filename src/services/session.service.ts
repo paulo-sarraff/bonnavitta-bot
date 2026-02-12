@@ -120,6 +120,94 @@ class SessionService {
       logger.error('Erro ao limpar sessões expiradas:', error);
     }
   }
+  
+    /**
+   * Atualiza múltiplos campos da sessão (token, usuarioId, estado, contexto)
+   */
+  async atualizarSessaoCompleta(
+    sessaoId: number,
+    dados: {
+      usuarioId?: number;
+      token?: string;
+      estadoAtual?: EstadoBot;
+      dadosContexto?: ContextoDados;
+    }
+  ): Promise<boolean> {
+    try {
+      let sessaoEncontrada: SessaoBot | null = null;
+      let chaveEncontrada: string | null = null;
+
+      // Encontrar sessão pelo ID
+      for (const [chave, sessao] of sessoesEmMemoria.entries()) {
+        if (sessao.id === sessaoId) {
+          sessaoEncontrada = sessao;
+          chaveEncontrada = chave;
+          break;
+        }
+      }
+
+      if (!sessaoEncontrada || !chaveEncontrada) {
+        logger.warn(`Sessão não encontrada para atualização completa: ${sessaoId}`);
+        return false;
+      }
+
+      // Atualizar apenas campos enviados
+      if (dados.usuarioId !== undefined) {
+        sessaoEncontrada.usuarioId = dados.usuarioId;
+      }
+
+      if (dados.token !== undefined) {
+        sessaoEncontrada.token = dados.token;
+      }
+
+      if (dados.estadoAtual !== undefined) {
+        sessaoEncontrada.estadoAtual = dados.estadoAtual;
+      }
+
+      if (dados.dadosContexto !== undefined) {
+        sessaoEncontrada.dadosContexto = dados.dadosContexto;
+      }
+
+      // Atualizar no Map
+      sessoesEmMemoria.set(chaveEncontrada, sessaoEncontrada);
+
+      logger.info(`Sessão ${sessaoId} atualizada com sucesso`);
+      return true;
+    } catch (error) {
+      logger.error('Erro ao atualizar sessão completa:', error);
+      return false;
+    }
+  }
+
+    /**
+   * Reseta sessão para estado inicial
+   */
+  async resetarSessao(
+    chatId: string,
+    canal: 'telegram' | 'whatsapp'
+  ): Promise<boolean> {
+    try {
+      const chaveUnica = `${canal}_${chatId}`;
+      const sessao = sessoesEmMemoria.get(chaveUnica);
+
+      if (!sessao) {
+        logger.warn(`Tentativa de resetar sessão inexistente: ${chatId}`);
+        return false;
+      }
+
+      sessao.estadoAtual = EstadoBot.MENU_PRINCIPAL;
+      sessao.dadosContexto = {};
+
+      sessoesEmMemoria.set(chaveUnica, sessao);
+
+      logger.info(`Sessão resetada: ${sessao.id}`);
+      return true;
+    } catch (error) {
+      logger.error('Erro ao resetar sessão:', error);
+      return false;
+    }
+  }
+  
 }
 
 export const sessionService = new SessionService();
