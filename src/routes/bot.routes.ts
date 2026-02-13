@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { Request, Response } from 'express';
-import { validarToken } from '../middleware/auth.middleware.js';
 import { botController } from '../controllers/bot.controller.js';
 
 const router = Router();
@@ -10,7 +9,7 @@ const router = Router();
  * Enviar mensagem (requer autenticação)
  */
 
-router.post('/message', validarToken, (req: Request, res: Response) => {
+router.post('/message', (req: Request, res: Response) => {
   return botController.message(req as any, res);
 });
 

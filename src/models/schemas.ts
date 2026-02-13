@@ -134,6 +134,8 @@ export interface OpçãoMenu {
 // ============================================
 
 export enum EstadoBot {
+  AGUARDANDO_CPF = 'aguardando_cpf',  // ✅ NOVO: Aguardando CPF
+  AGUARDANDO_TELEFONE = 'aguardando_telefone',  // ✅ NOVO: Aguardando Telefone
   AGUARDANDO_LOGIN = 'aguardando_login',
   MENU_PRINCIPAL = 'menu_principal',
   AGUARDANDO_DATA = 'aguardando_data',
