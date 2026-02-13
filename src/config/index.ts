@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import logger from '../utils/logger.js';
 
 dotenv.config();
 
@@ -43,9 +44,9 @@ const config = {
   database: {
     host: process.env.SQL_SERVER_HOST || 'chatbot-sqlserver.co3y6ok4qk49.us-east-1.rds.amazonaws.com',
     port: parseInt(process.env.SQL_SERVER_PORT || '1433', 10),
-    database: process.env.SQL_SERVER_DATABASE || 'BonnaVittaBot',
-    username: process.env.SQL_SERVER_USERNAME || 'adminsql',
-    password: process.env.SQL_SERVER_PASSWORD || 'Pspj7983!',
+    database: process.env.SQL_SERVER_DATABASE || 'xxx',
+    username: process.env.SQL_SERVER_USERNAME || 'yyy',
+    password: process.env.SQL_SERVER_PASSWORD || 'zzz!',
     options: {
       trustServerCertificate: true,
       enableKeepAlive: true,
@@ -58,20 +59,20 @@ const config = {
     },
   },
 
-  // ==================================================
-  // JWT
-  // ==================================================
-  jwt: {
-    secret: process.env.JWT_SECRET as string,
+    // ==================================================
+    // JWT
+    // ==================================================
+    jwt: {
+      secret: process.env.JWT_SECRET || 'dev-secret-key-change-in-production-12345',
 
-    // GARANTIDO
-    expiration: (process.env.JWT_EXPIRES_IN || '1d') as
-      | '1d'
-      | '7d'
-      | '30d'
-      | '12h'
-      | '24h',
-  },
+      // GARANTIDO
+      expiration: (process.env.JWT_EXPIRES_IN || '1d') as
+        | '1d'
+        | '7d'
+        | '30d'
+        | '12h'
+        | '24h',
+    },
 
   // ==================================================
   // Telegram
