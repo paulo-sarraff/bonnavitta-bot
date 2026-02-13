@@ -25,17 +25,6 @@ export const usuariosCadastrados: Usuario[] = [
     nomeEquipe: 'Food Service',
     role: 'diretoria',
     ativo: true,
-  },
-  {
-    id: 3,
-    cpf: '55555555500',
-    telefone: '11999999999',
-    nome: 'Pedro Oliveira',
-    email: 'pedro@empresa.com',
-    equipeId: 3,
-    nomeEquipe: 'Varejo',
-    role: 'admin',
-    ativo: true,
-  },
+  }
   // Adicione mais usuários conforme necessário
 ];
