@@ -71,7 +71,7 @@ export class BotController {
         // Validar se é um CPF válido (11 dígitos)
         if (cpfLimpo.length !== 11) {
           return {
-            resposta: '❌ CPF inválido. Informe um CPF válido com 11 dígitos.\n\nExemplo: 77803450253',
+            resposta: '❌ CPF inválido. Informe um CPF válido com 11 dígitos.\n\nExemplo: 12345678910',
             proximoEstado: EstadoBot.AGUARDANDO_CPF,
           };
         }
@@ -82,7 +82,7 @@ export class BotController {
         if (!usuarioComCPF) {
           logger.warn(`CPF não encontrado na lista de usuários: ${cpfLimpo}`);
           return {
-            resposta: '❌ CPF não encontrado. Verifique e tente novamente.\n\nExemplo: 77803450253',
+            resposta: '❌ CPF não encontrado. Verifique e tente novamente.\n\nExemplo: 12345678910',
             proximoEstado: EstadoBot.AGUARDANDO_CPF,
           };
         }
@@ -106,7 +106,7 @@ export class BotController {
         logger.info(`CPF recebido e validado para sessão ${sessao.id}: ${cpfLimpo}`);
 
         return {
-          resposta: '✅ CPF recebido!\n\n📞 Agora informe seu telefone:\n\nExemplo: 92994375522',
+          resposta: '✅ CPF recebido!\n\n📞 Agora informe seu telefone:\n\nExemplo: 92999999999',
           proximoEstado: EstadoBot.AGUARDANDO_TELEFONE,
         };
       }
@@ -122,7 +122,7 @@ export class BotController {
         // Validar se é um telefone válido (10-11 dígitos)
         if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
           return {
-            resposta: '❌ Telefone inválido. Informe um telefone válido com 10 ou 11 dígitos.\n\nExemplo: 92994375522',
+            resposta: '❌ Telefone inválido. Informe um telefone válido com 10 ou 11 dígitos.\n\nExemplo: 92999999999',
             proximoEstado: EstadoBot.AGUARDANDO_TELEFONE,
           };
         }
