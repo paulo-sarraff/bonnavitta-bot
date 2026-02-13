@@ -13,8 +13,6 @@ import { usuariosCadastrados } from '../config/usuarios-cadastrados.js';
 export class BotController {
 
   async message(req: AuthRequest, res: Response) {
-    logger.info(`Passei: Bot.Controller`);
-    logger.info(req.body);
     try {
       const resultado = await this.processarMensagem(req);
       return res.json(resultado);
@@ -29,7 +27,6 @@ export class BotController {
    * POST /api/bot/message
    */
   async processarMensagem(req: AuthRequest): Promise<BotProcessResult> {
-    logger.info(`Cheguei aqui: bot.controller.processarMensagem`);
     try {
       const { canal, chatId, mensagem, usuarioId } = req.body ?? {};
 
@@ -281,28 +278,28 @@ export class BotController {
 
       // 1. Totalizador de Vendas
       if (opcaoMenuPrincipal === '1') {
-        if (tipoConsulta === 'supervisor') {
+        if (tipoConsulta === '1') {
           const vendas = await vendasService.getVendasPorSupervisor(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorSupervisor(vendas);
           const grafico = await chartService.gerarGraficoVendasPorSupervisor(vendas);
           return { texto, grafico };
         }
 
-        if (tipoConsulta === 'vendedor') {
+        if (tipoConsulta === '2') {
           const vendas = await vendasService.getVendasPorVendedor(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorVendedor(vendas);
           const grafico = await chartService.gerarGraficoVendasPorVendedor(vendas);
           return { texto, grafico };
         }
 
-        if (tipoConsulta === 'equipe') {
+        if (tipoConsulta === '3') {
           const vendas = await vendasService.getVendasPorEquipe(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorEquipe(vendas);
           const grafico = await chartService.gerarGraficoVendasPorEquipe(vendas);
           return { texto, grafico };
         }
 
-        if (tipoConsulta === 'fabricante') {
+        if (tipoConsulta === '4') {
           const vendas = await vendasService.getVendasPorFabricante(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorFabricante(vendas);
           const grafico = await chartService.gerarGraficoVendasPorFabricante(vendas);
@@ -333,7 +330,7 @@ export class BotController {
         const grafico = await chartService.gerarGraficoVendasPorFabricante(vendas);
         return { texto, grafico };
       }
-
+      
       return { texto: 'Erro ao processar consulta', grafico: null };
     } catch (error) {
       logger.error('Erro ao processar consulta:', error);
