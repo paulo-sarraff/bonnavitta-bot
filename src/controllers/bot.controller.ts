@@ -8,10 +8,13 @@ import logger from '../utils/logger.js';
 import { EstadoBot } from '../models/schemas.js';
 import { BotProcessResult } from '../models/bot-response.js';
 import { authService } from '../services/auth.service.js';
+import { usuariosCadastrados } from '../config/usuarios-cadastrados.js';
 
 export class BotController {
 
   async message(req: AuthRequest, res: Response) {
+    logger.info(`Passei: Bot.Controller`);
+    logger.info(req.body);
     try {
       const resultado = await this.processarMensagem(req);
       return res.json(resultado);
@@ -26,6 +29,7 @@ export class BotController {
    * POST /api/bot/message
    */
   async processarMensagem(req: AuthRequest): Promise<BotProcessResult> {
+    logger.info(`Cheguei aqui: bot.controller.processarMensagem`);
     try {
       const { canal, chatId, mensagem, usuarioId } = req.body ?? {};
 
@@ -56,63 +60,129 @@ export class BotController {
         throw new Error('Falha ao obter ou criar sessão do usuário');
       }
 
-      // ✅ CORRIGIDO: Inicializar estado apenas na primeira mensagem
-      // Antes: Forçava estado para AGUARDANDO_LOGIN a cada mensagem
-      // Agora: Inicializa apenas se sessão não tem estado definido
-      if (!sessao.estadoAtual) {
-        logger.info(`Inicializando estado da sessão ${sessao.id} para AGUARDANDO_LOGIN`);
+      // =========================
+      // BLOCO 1: AGUARDANDO CPF
+      // =========================
+      if (sessao.estadoAtual === EstadoBot.AGUARDANDO_CPF) {
+        logger.info(`Sessão ${sessao.id} aguardando CPF`);
+
+        const cpfLimpo = mensagem.trim().replace(/\D/g, '');
+
+        // Validar se é um CPF válido (11 dígitos)
+        if (cpfLimpo.length !== 11) {
+          return {
+            resposta: '❌ CPF inválido. Informe um CPF válido com 11 dígitos.\n\nExemplo: 77803450253',
+            proximoEstado: EstadoBot.AGUARDANDO_CPF,
+          };
+        }
+
+        // ✅ Validar se CPF existe na lista de usuários cadastrados
+        const usuarioComCPF = usuariosCadastrados.find(u => u.cpf === cpfLimpo);
+
+        if (!usuarioComCPF) {
+          logger.warn(`CPF não encontrado na lista de usuários: ${cpfLimpo}`);
+          return {
+            resposta: '❌ CPF não encontrado. Verifique e tente novamente.\n\nExemplo: 77803450253',
+            proximoEstado: EstadoBot.AGUARDANDO_CPF,
+          };
+        }
+
+        if (!usuarioComCPF.ativo) {
+          logger.warn(`Usuário inativo: ${usuarioComCPF.nome}`);
+          return {
+            resposta: '❌ Seu usuário está inativo. Entre em contato com o administrador.',
+            proximoEstado: EstadoBot.AGUARDANDO_CPF,
+          };
+        }
+
+        // ✅ Armazenar CPF no contexto
         await sessionService.atualizarSessaoCompleta(sessao.id, {
-          estadoAtual: EstadoBot.AGUARDANDO_LOGIN,
+          estadoAtual: EstadoBot.AGUARDANDO_TELEFONE,
+          dadosContexto: {
+            cpfTemporario: cpfLimpo,
+          },
         });
-        sessao.estadoAtual = EstadoBot.AGUARDANDO_LOGIN;
+
+        logger.info(`CPF recebido e validado para sessão ${sessao.id}: ${cpfLimpo}`);
+
+        return {
+          resposta: '✅ CPF recebido!\n\n📞 Agora informe seu telefone:\n\nExemplo: 92994375522',
+          proximoEstado: EstadoBot.AGUARDANDO_TELEFONE,
+        };
       }
 
       // =========================
-      // BLOCO DE LOGIN
+      // BLOCO 2: AGUARDANDO TELEFONE
       // =========================
-      if (sessao.estadoAtual === EstadoBot.AGUARDANDO_LOGIN) {
-        logger.info(`Sessão ${sessao.id} aguardando login`);
+      if (sessao.estadoAtual === EstadoBot.AGUARDANDO_TELEFONE) {
+        logger.info(`Sessão ${sessao.id} aguardando telefone`);
 
-        const partes = mensagem.trim().split(' ');
+        const telefoneLimpo = mensagem.trim().replace(/\D/g, '');
 
-        if (partes.length < 2) {
+        // Validar se é um telefone válido (10-11 dígitos)
+        if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
           return {
-            resposta:
-              '🔐 Para acessar o bot, informe seu CPF e telefone.\n\nExemplo:\n77803450253 92994375522',
-            proximoEstado: EstadoBot.AGUARDANDO_LOGIN,
+            resposta: '❌ Telefone inválido. Informe um telefone válido com 10 ou 11 dígitos.\n\nExemplo: 92994375522',
+            proximoEstado: EstadoBot.AGUARDANDO_TELEFONE,
           };
         }
 
-        const [cpf, telefone] = partes;
+        // ✅ Recuperar CPF do contexto
+        const cpfTemporario = sessao.dadosContexto?.cpfTemporario;
 
-        const resultadoLogin = await authService.login(cpf, telefone);
-
-        if (
-          !resultadoLogin.success ||
-          !resultadoLogin.usuario ||
-          !resultadoLogin.token
-        ) {
-          logger.warn(`Login inválido para chatId ${chatId}`);
-
+        if (!cpfTemporario) {
+          logger.error(`CPF não encontrado no contexto da sessão ${sessao.id}`);
           return {
-            resposta: '❌ CPF ou telefone inválidos. Tente novamente.',
-            proximoEstado: EstadoBot.AGUARDANDO_LOGIN,
+            resposta: '❌ Erro ao processar login. Tente novamente.\n\n📱 Informe seu CPF:',
+            proximoEstado: EstadoBot.AGUARDANDO_CPF,
           };
         }
 
-        // ✅ Atualiza sessão com dados do usuário autenticado
+        // ✅ Validar CPF + Telefone contra usuários cadastrados
+        const usuarioValidado = usuariosCadastrados.find(
+          u => u.cpf === cpfTemporario && u.telefone === telefoneLimpo
+        );
+
+        if (!usuarioValidado) {
+          logger.warn(`Login inválido para chatId ${chatId}: CPF ${cpfTemporario}, Telefone ${telefoneLimpo}`);
+          
+          // ✅ CORRIGIDO: Limpar contexto ao retornar para AGUARDANDO_CPF
+          await sessionService.atualizarSessaoCompleta(sessao.id, {
+            estadoAtual: EstadoBot.AGUARDANDO_CPF,
+            dadosContexto: {}, // ✅ Limpar contexto
+          });
+
+          return {
+            resposta: '❌ CPF ou telefone inválidos. Tente novamente.\n\n📱 Informe seu CPF:',
+            proximoEstado: EstadoBot.AGUARDANDO_CPF,
+          };
+        }
+
+        if (!usuarioValidado.ativo) {
+          logger.warn(`Usuário inativo tentou fazer login: ${usuarioValidado.nome}`);
+          return {
+            resposta: '❌ Seu usuário está inativo. Entre em contato com o administrador.',
+            proximoEstado: EstadoBot.AGUARDANDO_CPF,
+          };
+        }
+
+        // ✅ Gerar token usando authService
+        const token = authService.gerarToken(usuarioValidado);
+
+        // ✅ Atualizar sessão com dados do usuário autenticado
         await sessionService.atualizarSessaoCompleta(sessao.id, {
-          usuarioId: resultadoLogin.usuario.id,
-          token: resultadoLogin.token,
+          usuarioId: usuarioValidado.id,
+          token: token,
           estadoAtual: EstadoBot.MENU_PRINCIPAL,
+          dadosContexto: {}, // ✅ Limpar contexto temporário
         });
 
         logger.info(
-          `Usuário ${resultadoLogin.usuario.nome} autenticado na sessão ${sessao.id}`
+          `Usuário ${usuarioValidado.nome} (ID: ${usuarioValidado.id}) autenticado na sessão ${sessao.id}`
         );
 
         return {
-          resposta: `✅ Login realizado com sucesso!\n\nBem-vindo, ${resultadoLogin.usuario.nome}`,
+          resposta: `✅ Login realizado com sucesso!\n\nBem-vindo, ${usuarioValidado.nome}! 🎉`,
           opcoes: botFlowService.getMenuPrincipal().opcoes,
           proximoEstado: EstadoBot.MENU_PRINCIPAL,
         };
@@ -121,7 +191,6 @@ export class BotController {
       // =========================
       // COMANDO RESET (Menu/Início)
       // =========================
-      // ✅ CORRIGIDO: Este bloco agora é alcançável porque não força estado para AGUARDANDO_LOGIN
       const mensagemNormalizada = mensagem.trim().toLowerCase();
       const comandosReset = ['oi', 'olá', 'ola', 'menu', 'iniciar', 'start'];
 

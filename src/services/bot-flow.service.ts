@@ -26,12 +26,12 @@ class BotFlowService {
     return {
       resposta: `📅 *Qual período deseja consultar?*\n`,
       opcoes: [
-        { id: 'hoje', texto: 'Hoje', emoji: '📍' },
-        { id: 'ontem', texto: 'Ontem', emoji: '⏮️' },
-        { id: '7dias', texto: 'Últimos 7 dias', emoji: '📆' },
-        { id: 'mes', texto: 'Este mês', emoji: '📅' },
-        { id: 'mespassado', texto: 'Mês anterior', emoji: '⏪' },
-        { id: 'voltar', texto: 'Voltar', emoji: '🔙' },
+        { id: '1', texto: 'Hoje', emoji: '📍' },
+        { id: '2', texto: 'Ontem', emoji: '⏮️' },
+        { id: '3', texto: 'Últimos 7 dias', emoji: '📆' },
+        { id: '4', texto: 'Este mês', emoji: '📅' },
+        { id: '5', texto: 'Mês anterior', emoji: '⏪' },
+        { id: '0', texto: 'Voltar', emoji: '🔙' },
       ],
       proximoEstado: EstadoBot.AGUARDANDO_DATA,
     };
@@ -44,11 +44,11 @@ class BotFlowService {
     return {
       resposta: `📊 *Totalizador de Vendas*\n\nDeseja ver:\n`,
       opcoes: [
-        { id: 'supervisor', texto: 'Vendas por Supervisor', emoji: '👔' },
-        { id: 'vendedor', texto: 'Vendas por Vendedor', emoji: '👥' },
-        { id: 'equipe', texto: 'Vendas por Equipe', emoji: '🤝' },
-        { id: 'fabricante', texto: 'Vendas por Fabricante', emoji: '🏢' },
-        { id: 'voltar', texto: 'Voltar', emoji: '🔙' },
+        { id: '1', texto: 'Vendas por Supervisor', emoji: '👔' },
+        { id: '2', texto: 'Vendas por Vendedor', emoji: '👥' },
+        { id: '3', texto: 'Vendas por Equipe', emoji: '🤝' },
+        { id: '4', texto: 'Vendas por Fabricante', emoji: '🏢' },
+        { id: '0', texto: 'Voltar', emoji: '🔙' },
       ],
       proximoEstado: EstadoBot.AGUARDANDO_TIPO_CONSULTA,
     };
@@ -61,11 +61,11 @@ class BotFlowService {
     return {
       resposta: `👥 *Qual equipe deseja consultar?*\n`,
       opcoes: [
-        { id: 'Varejo', texto: 'Varejo', emoji: '🛒' },
-        { id: 'Food Service', texto: 'Food Service', emoji: '🍽️' },
-        { id: 'Redes', texto: 'Redes', emoji: '🏬' },
-        { id: 'Telemarketing', texto: 'Telemarketing', emoji: '☎️' },
-        { id: 'voltar', texto: 'Voltar', emoji: '🔙' },
+        { id: '1', texto: 'Varejo', emoji: '🛒' },
+        { id: '2', texto: 'Food Service', emoji: '🍽️' },
+        { id: '3', texto: 'Redes', emoji: '🏬' },
+        { id: '4', texto: 'Telemarketing', emoji: '☎️' },
+        { id: '0', texto: 'Voltar', emoji: '🔙' },
       ],
       proximoEstado: EstadoBot.AGUARDANDO_EQUIPE,
     };
@@ -170,24 +170,24 @@ class BotFlowService {
     let dataFim: Date = hoje;
 
     switch (opcao) {
-      case 'hoje':
+      case '1':
         dataInicio = hoje;
         break;
-      case 'ontem':
+      case '2':
         dataInicio = new Date(hoje.getTime() - 24 * 60 * 60 * 1000);
         dataFim = dataInicio;
         break;
-      case '7dias':
+      case '3':
         dataInicio = new Date(hoje.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
-      case 'mes':
+      case '4':
         dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
         break;
-      case 'mespassado':
+      case '5':
         dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
         dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
         break;
-      case 'voltar':
+      case '0':
         return {
           proximoEstado: EstadoBot.MENU_PRINCIPAL,
           contextoAtualizado: contexto,
@@ -265,7 +265,7 @@ class BotFlowService {
     opcao: string,
     contexto: ContextoDados
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
-    if (opcao === 'voltar') {
+    if (opcao === '0') {
       return {
         proximoEstado: EstadoBot.AGUARDANDO_DATA,
         contextoAtualizado: contexto,
@@ -292,7 +292,7 @@ class BotFlowService {
     opcao: string,
     contexto: ContextoDados
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
-    if (opcao === 'voltar') {
+    if (opcao === '0') {
       return {
         proximoEstado: EstadoBot.AGUARDANDO_TIPO_CONSULTA,
         contextoAtualizado: contexto,

@@ -65,7 +65,7 @@ app.use('/api/webhook', webhookRoutes);
 // ============================================
 
 // Bot (com middleware de autenticação)
-app.use('/api/bot', authMiddleware, botRoutes);
+app.use('/api/bot', botRoutes);
 
 // ============================================
 // Rota Raiz

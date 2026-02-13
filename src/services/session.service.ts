@@ -19,12 +19,13 @@ class SessionService {
       
       // Criar nova sessão
       const sessao: SessaoBot = {
-        id: Date.now(), // ID único baseado em timestamp
+        id: Date.now(),
         usuarioId,
         canal,
         chatId,
-        estadoAtual: 'menu_principal',
+        estadoAtual: EstadoBot.AGUARDANDO_CPF,  // ✅ CORRIGIDO: Iniciar com AGUARDANDO_CPF
         token,
+        dadosContexto: {},  // ✅ ADICIONADO: Inicializar contexto vazio
       };
 
       // Armazenar em memória
@@ -195,7 +196,7 @@ class SessionService {
         return false;
       }
 
-      sessao.estadoAtual = EstadoBot.MENU_PRINCIPAL;
+      sessao.estadoAtual = EstadoBot.AGUARDANDO_CPF;  // ✅ CORRIGIDO: Resetar para AGUARDANDO_CPF
       sessao.dadosContexto = {};
 
       sessoesEmMemoria.set(chaveUnica, sessao);
