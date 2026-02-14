@@ -5,7 +5,7 @@ import logger from '../utils/logger.js';
 
 // Interfaces para os dados
 interface VendasPorSupervisor {
-  NomeSupervisor: string;
+  NomeSetor: string;
   QuantidadePedidos: number;
   QuantidadeVendedores: number;
   TotalVendas: number;
@@ -92,7 +92,7 @@ class ChartService {
         return null;
       }
 
-      const labels = vendas.map((v) => v.NomeSupervisor);
+      const labels = vendas.map((v) => v.NomeSetor);
       const valores = vendas.map((v) => v.TotalVendas);
 
       if (!this.validarDados(labels, valores)) {
