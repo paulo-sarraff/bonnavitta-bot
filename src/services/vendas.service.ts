@@ -3,7 +3,7 @@ import logger from '../utils/logger.js';
 
 // Interfaces para os dados retornados pelas procedures
 interface VendasPorSupervisor {
-  NomeSupervisor: string;
+  NomeSetor: string;
   QuantidadePedidos: number;
   QuantidadeVendedores: number;
   TotalVendas: number;
@@ -287,7 +287,7 @@ class VendasService {
     let resposta = `📊 *Totalizador de Vendas por Supervisor*\n\n`;
 
     vendas.forEach((venda) => {
-      resposta += `*${venda.NomeSupervisor}*\n`;
+      resposta += `*${venda.NomeSetor}*\n`;
       resposta += `  💰 Total de Vendas: R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
       resposta += `  🎫 Ticket Médio: R$ ${this.formatarMoeda(venda.TicketMedio)}\n`;
       resposta += `  📦 Pedidos: ${venda.QuantidadePedidos}\n`;
