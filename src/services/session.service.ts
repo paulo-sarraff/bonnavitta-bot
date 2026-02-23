@@ -7,6 +7,7 @@ const sessoesEmMemoria = new Map<string, SessaoBot>();
 class SessionService {
   /**
    * Cria nova sessão de bot (em memória)
+   * ✅ NOVO: Adiciona timestamps de criação e expiração (24h)
    */
   async criarSessao(
     usuarioId: number,
@@ -16,6 +17,8 @@ class SessionService {
   ): Promise<SessaoBot | null> {
     try {
       const chaveUnica = `${canal}_${chatId}`;
+      const agora = Date.now();
+      const vinte4Horas = 24 * 60 * 60 * 1000; // 24h em ms
       
       // Criar nova sessão
       const sessao: SessaoBot = {
@@ -26,12 +29,15 @@ class SessionService {
         estadoAtual: EstadoBot.AGUARDANDO_CPF,  // ✅ CORRIGIDO: Iniciar com AGUARDANDO_CPF
         token,
         dadosContexto: {},  // ✅ ADICIONADO: Inicializar contexto vazio
+        // ✅ NOVO: Timestamps de expiração
+        criadoEm: agora,
+        expiraEm: agora + vinte4Horas,
       };
 
       // Armazenar em memória
       sessoesEmMemoria.set(chaveUnica, sessao);
       
-      logger.info(`Sessão criada: ${sessao.id} (usuário: ${usuarioId}, canal: ${canal})`);
+      logger.info(`Sessão criada: ${sessao.id} (usuário: ${usuarioId}, canal: ${canal}, expira em: ${new Date(sessao.expiraEm).toISOString()})`);
 
       return sessao;
     } catch (error) {
@@ -42,6 +48,7 @@ class SessionService {
 
   /**
    * Obtém sessão existente (em memória)
+   * ✅ NOVO: Valida se a sessão não expirou
    */
   async obterSessao(chatId: string, canal: 'telegram' | 'whatsapp'): Promise<SessaoBot | null> {
     try {
@@ -51,6 +58,15 @@ class SessionService {
 
       if (!sessao) {
         logger.warn(`Sessão não encontrada: ${chatId} (${canal})`);
+        return null;
+      }
+
+      // ✅ NOVO: Verificar se sessão expirou
+      const agora = Date.now();
+      if (agora > sessao.expiraEm) {
+        logger.warn(`Sessão expirada: ${sessao.id} (expirou em: ${new Date(sessao.expiraEm).toISOString()})`);
+        // Remover sessão expirada
+        sessoesEmMemoria.delete(chaveUnica);
         return null;
       }
 
@@ -112,17 +128,31 @@ class SessionService {
 
   /**
    * Limpa sessões expiradas (chamado periodicamente)
+   * ✅ NOVO: Remove sessões que expiraram há mais de 24h
    */
   async limparSessoesExpiradas(): Promise<void> {
     try {
       logger.info('Limpando sessões expiradas...');
-      // Implementar limpeza de sessões expiradas no BD
+      const agora = Date.now();
+      let sessoesDeletadas = 0;
+
+      // Iterar sobre todas as sessões
+      for (const [chave, sessao] of sessoesEmMemoria.entries()) {
+        // Se a sessão expirou, remover
+        if (agora > sessao.expiraEm) {
+          sessoesEmMemoria.delete(chave);
+          sessoesDeletadas++;
+          logger.info(`Sessão expirada removida: ${sessao.id} (expirou em: ${new Date(sessao.expiraEm).toISOString()})`);
+        }
+      }
+
+      logger.info(`Limpeza concluída. ${sessoesDeletadas} sessões expiradas removidas.`);
     } catch (error) {
       logger.error('Erro ao limpar sessões expiradas:', error);
     }
   }
   
-    /**
+  /**
    * Atualiza múltiplos campos da sessão (token, usuarioId, estado, contexto)
    */
   async atualizarSessaoCompleta(
@@ -180,7 +210,7 @@ class SessionService {
     }
   }
 
-    /**
+  /**
    * Reseta sessão para estado inicial
    */
   async resetarSessao(

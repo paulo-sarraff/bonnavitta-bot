@@ -10,6 +10,7 @@ export interface Usuario {
   telefone: string;
   equipeId: number;
   nomeEquipe: string;
+  role: 'admin' | 'gerente' | 'vendedor' | 'supervisor' | 'diretoria' | 'comercial' | 'financeiro';
   roles?: string[]; // ✅ NOVO: Suportar múltiplas roles
   ativo: boolean;
 }
@@ -79,6 +80,9 @@ export interface SessaoBot {
   estadoAtual: string;
   dadosContexto?: Record<string, any>;
   token: string;
+  // ✅ NOVO: Controle de expiração de sessão (24h)
+  criadoEm: number; // Timestamp em ms
+  expiraEm: number; // Timestamp em ms
 }
 
 export interface ContextoDados {
@@ -118,12 +122,12 @@ export interface MensagemBotRequest {
 
 export interface MensagemBotResponse {
   resposta: string;
-  opcoes?: OpcaoMenu[];
+  opcoes?: OpçãoMenu[];
   gráfico?: string;
   proximoEstado: string;
 }
 
-export interface OpcaoMenu {
+export interface OpçãoMenu {
   id: string;
   texto: string;
   emoji?: string;
@@ -168,7 +172,7 @@ export enum EstadoBot {
 
 export interface MenuPrincipal {
   titulo: string;
-  opcoes: OpcaoMenu[];
+  opcoes: OpçãoMenu[];
 }
 
 // ============================================
