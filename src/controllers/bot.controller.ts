@@ -180,7 +180,7 @@ export class BotController {
 
         return {
           resposta: `✅ Login realizado com sucesso!\n\nBem-vindo, ${usuarioValidado.nome}! 🎉`,
-          opcoes: botFlowService.getMenuPrincipal().opcoes,
+          opcoes: botFlowService.getMenuPrincipal(usuarioValidado.roles).opcoes, // ✅ CORRIGIDO: Passar roles
           proximoEstado: EstadoBot.MENU_PRINCIPAL,
         };
       }
@@ -199,9 +199,13 @@ export class BotController {
           dadosContexto: {},
         });
 
+        const usuario = usuariosCadastrados.find(u => u.id === sessao.usuarioId);
+        const roles = usuario?.roles || [];
+        const menu = botFlowService.getMenuPrincipal(roles); // ✅ CORRIGIDO: Passar roles
+        
         return {
-          resposta: botFlowService.getMenuPrincipal().resposta,
-          opcoes: botFlowService.getMenuPrincipal().opcoes,
+          resposta: menu.resposta,
+          opcoes: menu.opcoes,
           proximoEstado: EstadoBot.MENU_PRINCIPAL,
         };
       }
@@ -234,7 +238,7 @@ export class BotController {
         );
 
         respostaFinal = respostaConsulta.texto;
-        grafico = respostaConsulta.grafico;
+        //grafico = respostaConsulta.grafico;
 
         // Atualizar para estado de exibição de resultado
         await sessionService.atualizarEstado(
@@ -281,28 +285,28 @@ export class BotController {
         if (tipoConsulta === '1') {
           const vendas = await vendasService.getVendasPorSupervisor(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorSupervisor(vendas);
-          const grafico = await chartService.gerarGraficoVendasPorSupervisor(vendas);
+          const grafico = '';//await chartService.gerarGraficoVendasPorSupervisor(vendas);
           return { texto, grafico };
         }
 
         if (tipoConsulta === '2') {
           const vendas = await vendasService.getVendasPorVendedor(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorVendedor(vendas);
-          const grafico = await chartService.gerarGraficoVendasPorVendedor(vendas);
+          const grafico = '';//await chartService.gerarGraficoVendasPorVendedor(vendas);
           return { texto, grafico };
         }
 
         if (tipoConsulta === '3') {
           const vendas = await vendasService.getVendasPorEquipe(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorEquipe(vendas);
-          const grafico = await chartService.gerarGraficoVendasPorEquipe(vendas);
+          const grafico = ''//await chartService.gerarGraficoVendasPorEquipe(vendas);
           return { texto, grafico };
         }
 
         if (tipoConsulta === '4') {
           const vendas = await vendasService.getVendasPorFabricante(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorFabricante(vendas);
-          const grafico = await chartService.gerarGraficoVendasPorFabricante(vendas);
+          const grafico = '';//await chartService.gerarGraficoVendasPorFabricante(vendas);
           return { texto, grafico };
         }
       }
@@ -311,7 +315,7 @@ export class BotController {
       if (opcaoMenuPrincipal === '2') {
         const vendas = await vendasService.getVendasPorDia(dataInicio, dataFim);
         const texto = vendasService.formatarVendasPorDia(vendas);
-        const grafico = await chartService.gerarGraficoVendasPorDia(vendas);
+        const grafico = '';//await chartService.gerarGraficoVendasPorDia(vendas);
         return { texto, grafico };
       }
 
@@ -319,7 +323,7 @@ export class BotController {
       if (opcaoMenuPrincipal === '3') {
         const produtos = await vendasService.getRankingProdutos(dataInicio, dataFim, 10);
         const texto = vendasService.formatarRankingProdutos(produtos);
-        const grafico = await chartService.gerarGraficoRankingProdutos(produtos);
+        const grafico = '';//await chartService.gerarGraficoRankingProdutos(produtos);
         return { texto, grafico };
       }
 
@@ -327,7 +331,7 @@ export class BotController {
       if (opcaoMenuPrincipal === '4') {
         const vendas = await vendasService.getVendasPorFabricante(dataInicio, dataFim);
         const texto = vendasService.formatarVendasPorFabricante(vendas);
-        const grafico = await chartService.gerarGraficoVendasPorFabricante(vendas);
+        const grafico = '';//await chartService.gerarGraficoVendasPorFabricante(vendas);
         return { texto, grafico };
       }
       

@@ -1,7 +1,8 @@
-import { getDatabase, sql } from '../config/database.js';
+import { getDatabase } from '../config/database.js';
+import sql from 'mssql';
 import logger from '../utils/logger.js';
 
-// Interfaces para os dados retornados pelas procedures
+// ✅ INTERFACES EXISTENTES
 interface VendasPorSupervisor {
   NomeSetor: string;
   QuantidadePedidos: number;
@@ -54,6 +55,50 @@ interface VendasPorEquipe {
   QuantidadeUnidades: number;
 }
 
+// ✅ NOVAS INTERFACES
+interface VendasPorSupervisorDetalhado {
+  EquipeNome: string;
+  QuantidadePedidos: number;
+  QuantidadeVendedores: number;
+  TotalVendas: number;
+  TicketMedio: number;
+}
+
+interface VendasPorVendedorEmEquipe {
+  SetorClientes: number;
+  NomeVendedor: string;
+  TotalVendas: number;
+  QuantidadePedidos: number;
+  TicketMedio: number;
+}
+
+interface DetalheVendedor {
+  NomeVendedor: string;
+  SetorClientes: number;
+  TotalVendas: number;
+  QuantidadePedidos: number;
+  QuantidadeClientes: number;
+  FabricanteMaisVendido: string;
+  ProdutoMaisVendido: string;
+  QuantidadeProdutoMaisVendido: number;
+}
+
+interface VendasPorDiaDetalhado {
+  Data: string;
+  DiaSemana: string;
+  TotalVendas: number;
+  QuantidadePedidos: number;
+}
+
+interface DetalheFabricante {
+  NomeFabricante: string;
+  TotalVendas: number;
+  QuantidadePedidos: number;
+  QuantidadeVendedores: number;
+  QuantidadeClientes: number;
+  ProdutoMaisVendido: string;
+  QuantidadeProdutoMaisVendido: number;
+}
 
 class VendasService {
   /**
@@ -76,6 +121,33 @@ class VendasService {
       return result.recordset;
     } catch (error) {
       logger.error('Erro ao obter vendas por supervisor:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NOVO: Obtém vendas por supervisor agrupadas por equipe
+   * Retorna resumo por equipe (NomeSetor) com totais
+   */
+  async getVendasPorSupervisorPorEquipe(
+    dataInicio: string,
+    dataFim: string,
+    nomeSupervisor: string
+  ): Promise<VendasPorSupervisorDetalhado[]> {
+    try {
+      const db = await getDatabase();
+      const request = new sql.Request(db);
+
+      request.input('DataInicio', sql.Date, dataInicio);
+      request.input('DataFim', sql.Date, dataFim);
+      request.input('NomeSupervisor', sql.NVarChar, nomeSupervisor);
+
+      const result = await request.execute('sp_GetVendasPorSupervisorPorEquipe');
+
+      logger.info(`Vendas por supervisor (${nomeSupervisor}) recuperadas: ${result.recordset.length} registros`);
+      return result.recordset;
+    } catch (error) {
+      logger.error('Erro ao obter vendas por supervisor por equipe:', error);
       throw error;
     }
   }
@@ -105,6 +177,60 @@ class VendasService {
   }
 
   /**
+   * ✅ NOVO: Obtém vendas por vendedor em uma equipe específica
+   * Retorna lista de vendedores com seus totais
+   */
+  async getVendasPorVendedorEmEquipe(
+    dataInicio: string,
+    dataFim: string,
+    nomeSetor: string
+  ): Promise<VendasPorVendedorEmEquipe[]> {
+    try {
+      const db = await getDatabase();
+      const request = new sql.Request(db);
+
+      request.input('DataInicio', sql.Date, dataInicio);
+      request.input('DataFim', sql.Date, dataFim);
+      request.input('NomeSetor', sql.NVarChar, nomeSetor);
+
+      const result = await request.execute('sp_GetVendasPorVendedorEmEquipe');
+
+      logger.info(`Vendas por vendedor em ${nomeSetor}: ${result.recordset.length} registros`);
+      return result.recordset;
+    } catch (error) {
+      logger.error('Erro ao obter vendas por vendedor em equipe:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NOVO: Obtém detalhe completo de um vendedor específico
+   * Retorna: Totais, Clientes, Fabricante mais vendido, Produto mais vendido
+   */
+  async getDetalheVendedor(
+    dataInicio: string,
+    dataFim: string,
+    setorClientes: number
+  ): Promise<DetalheVendedor> {
+    try {
+      const db = await getDatabase();
+      const request = new sql.Request(db);
+
+      request.input('DataInicio', sql.Date, dataInicio);
+      request.input('DataFim', sql.Date, dataFim);
+      request.input('SetorClientes', sql.Int, setorClientes);
+
+      const result = await request.execute('sp_GetDetalheVendedor');
+
+      logger.info(`Detalhe do vendedor ${setorClientes} recuperado`);
+      return result.recordset[0] || {};
+    } catch (error) {
+      logger.error('Erro ao obter detalhe do vendedor:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Obtém vendas por dia em um período
    */
   async getVendasPorDia(
@@ -129,6 +255,31 @@ class VendasService {
   }
 
   /**
+   * ✅ NOVO: Obtém vendas por dia com informações detalhadas
+   * Retorna: Data, Dia da semana, Totais, Pedidos
+   */
+  async getVendasPorDiaDetalhado(
+    dataInicio: string,
+    dataFim: string
+  ): Promise<VendasPorDiaDetalhado[]> {
+    try {
+      const db = await getDatabase();
+      const request = new sql.Request(db);
+
+      request.input('DataInicio', sql.Date, dataInicio);
+      request.input('DataFim', sql.Date, dataFim);
+
+      const result = await request.execute('sp_GetVendasPorDiaDetalhado');
+
+      logger.info(`Vendas por dia detalhado: ${result.recordset.length} registros`);
+      return result.recordset;
+    } catch (error) {
+      logger.error('Erro ao obter vendas por dia detalhado:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Obtém vendas por fabricante em um período
    */
   async getVendasPorFabricante(
@@ -148,6 +299,33 @@ class VendasService {
       return result.recordset;
     } catch (error) {
       logger.error('Erro ao obter vendas por fabricante:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NOVO: Obtém detalhe completo de um fabricante específico
+   * Retorna: Totais, Vendedores, Clientes, Produto mais vendido
+   */
+  async getDetalheFabricante(
+    dataInicio: string,
+    dataFim: string,
+    nomeFabricante: string
+  ): Promise<DetalheFabricante> {
+    try {
+      const db = await getDatabase();
+      const request = new sql.Request(db);
+
+      request.input('DataInicio', sql.Date, dataInicio);
+      request.input('DataFim', sql.Date, dataFim);
+      request.input('NomeFabricante', sql.NVarChar, nomeFabricante);
+
+      const result = await request.execute('sp_GetDetalheFabricante');
+
+      logger.info(`Detalhe do fabricante ${nomeFabricante} recuperado`);
+      return result.recordset[0] || {};
+    } catch (error) {
+      logger.error('Erro ao obter detalhe do fabricante:', error);
       throw error;
     }
   }
@@ -252,7 +430,7 @@ class VendasService {
     }
   }
 
-    /**
+  /**
    * Formata resposta de vendas por equipe
    */
   formatarVendasPorEquipe(vendas: VendasPorEquipe[]): string {
@@ -275,6 +453,28 @@ class VendasService {
     return resposta;
   }
 
+  /**
+   * ✅ NOVO: Formata resposta de vendas por supervisor por equipe
+   */
+  formatarVendasPorSupervisorPorEquipe(vendas: VendasPorSupervisorDetalhado[]): string {
+    if (vendas.length === 0) {
+      return 'Nenhum dado encontrado para o período solicitado.';
+    }
+
+    let resposta = `👥 *Totalizador de Vendas por Equipe*\n\n`;
+
+    vendas.forEach((venda) => {
+      resposta += `*${venda.EquipeNome}*\n`;
+      resposta += `  Venda R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
+      resposta += `  Quantidade de pedidos: ${venda.QuantidadePedidos}\n`;
+      resposta += `  Vendedores com pedido: ${venda.QuantidadeVendedores}\n\n`;
+    });
+
+    const totalGeral = vendas.reduce((sum, v) => sum + v.TotalVendas, 0);
+    resposta += `*💰 TOTAL GERAL: R$ ${this.formatarMoeda(totalGeral)}*\n`;
+
+    return resposta;
+  }
 
   /**
    * Formata resposta de vendas por supervisor
@@ -298,6 +498,38 @@ class VendasService {
     resposta += `*💰 TOTAL GERAL: R$ ${this.formatarMoeda(totalGeral)}*\n`;
 
     return resposta;
+  }
+
+  /**
+   * ✅ NOVO: Formata resposta de vendas por vendedor em equipe
+   */
+  formatarVendasPorVendedorEmEquipe(vendas: VendasPorVendedorEmEquipe[]): string {
+    if (vendas.length === 0) {
+      return 'Nenhum dado encontrado para o período solicitado.';
+    }
+
+    let resposta = `👥 *Totalizador de Vendas por Vendedor*\n\n`;
+
+    vendas.forEach((venda) => {
+      resposta += `${venda.SetorClientes} - *${venda.NomeVendedor}* - Valor R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
+    });
+
+    const totalGeral = vendas.reduce((sum, v) => sum + v.TotalVendas, 0);
+    resposta += `\n*Total: R$ ${this.formatarMoeda(totalGeral)}*\n`;
+
+    return resposta;
+  }
+
+  /**
+   * ✅ NOVO: Formata resposta de detalhe de vendedor
+   */
+  formatarDetalheVendedor(detalhe: DetalheVendedor): string {
+    return `*${detalhe.SetorClientes} - ${detalhe.NomeVendedor}*\n` +
+      `Vendas R$ ${this.formatarMoeda(detalhe.TotalVendas)}\n` +
+      `Quantidade de pedidos: ${detalhe.QuantidadePedidos}\n` +
+      `Quantidade de clientes: ${detalhe.QuantidadeClientes}\n` +
+      `Fabricante mais vendido: ${detalhe.FabricanteMaisVendido}\n` +
+      `Produto mais vendido: ${detalhe.ProdutoMaisVendido}\n`;
   }
 
   /**
@@ -342,6 +574,26 @@ class VendasService {
   }
 
   /**
+   * ✅ NOVO: Formata resposta de vendas por dia detalhado
+   */
+  formatarVendasPorDiaDetalhado(vendas: VendasPorDiaDetalhado[]): string {
+    if (vendas.length === 0) {
+      return 'Nenhum dado encontrado para o período solicitado.';
+    }
+
+    let resposta = `📅 *Vendas por Dia*\n\n`;
+
+    vendas.forEach((venda) => {
+      const data = new Date(venda.Data).toLocaleDateString('pt-BR');
+      resposta += `*${data}* (${venda.DiaSemana})\n`;
+      resposta += `  Venda R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
+      resposta += `  Quantidade de pedidos: ${venda.QuantidadePedidos}\n\n`;
+    });
+
+    return resposta;
+  }
+
+  /**
    * Formata resposta de vendas por fabricante
    */
   formatarVendasPorFabricante(vendas: VendasPorFabricante[]): string {
@@ -351,17 +603,26 @@ class VendasService {
 
     let resposta = `🏭 *Totalizador de Vendas por Fabricante*\n\n`;
 
-    vendas.forEach((venda) => {
-      resposta += `*${venda.NomeFabricante}*\n`;
-      resposta += `  💰 Total de Vendas: R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
-      resposta += `  🎫 Ticket Médio: R$ ${this.formatarMoeda(venda.TicketMedio)}\n`;
-      resposta += `  📦 Pedidos: ${venda.QuantidadePedidos}\n\n`;
+    vendas.forEach((venda, index) => {
+      resposta += `${index + 1} - ${venda.NomeFabricante} - R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
     });
 
     const totalGeral = vendas.reduce((sum, v) => sum + v.TotalVendas, 0);
-    resposta += `*💰 TOTAL GERAL: R$ ${this.formatarMoeda(totalGeral)}*\n`;
+    resposta += `\n*💰 TOTAL GERAL: R$ ${this.formatarMoeda(totalGeral)}*\n`;
 
     return resposta;
+  }
+
+  /**
+   * ✅ NOVO: Formata resposta de detalhe de fabricante
+   */
+  formatarDetalheFabricante(detalhe: DetalheFabricante): string {
+    return `*${detalhe.NomeFabricante}* - R$ ${this.formatarMoeda(detalhe.TotalVendas)}\n` +
+      `Quantidade de pedidos: ${detalhe.QuantidadePedidos}\n` +
+      `Vendedores: ${detalhe.QuantidadeVendedores}\n` +
+      `Clientes: ${detalhe.QuantidadeClientes}\n` +
+      `Produto mais vendido: ${detalhe.ProdutoMaisVendido}\n` +
+      `Quantidade do produto mais vendido: ${detalhe.QuantidadeProdutoMaisVendido} volume(s)\n`;
   }
 
   /**

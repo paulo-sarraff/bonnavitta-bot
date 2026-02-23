@@ -4,8 +4,58 @@ import { EstadoBot, MensagemBotResponse, ContextoDados } from '../models/schemas
 class BotFlowService {
   /**
    * Menu principal - Alinhado com o menu do cliente
+   * ✅ CORRIGIDO: Aceita roles e retorna menu diferente conforme a role
    */
-  getMenuPrincipal(): MensagemBotResponse {
+  getMenuPrincipal(roles: string[] = []): MensagemBotResponse {
+    logger.info(`Gerando menu principal para roles: ${roles.join(', ')}`);
+    
+    // Verificar se é admin ou diretoria (acesso a todos os menus)
+    const isAdminOrDiretoria = roles.includes('admin') || roles.includes('diretoria');
+    const isComercial = roles.includes('comercial');
+    const isFinanceiro = roles.includes('financeiro');
+
+    // Menu para admin/diretoria (todos os acessos)
+    if (isAdminOrDiretoria) {
+      return {
+        resposta: `🏪 *Bem-vindo ao Chatbot BonnaVitta*\n\nO que deseja consultar?\n`,
+        opcoes: [
+          { id: '1', texto: 'Menu Comercial', emoji: '📊' },
+          { id: '2', texto: 'Menu Financeiro', emoji: '💰' },
+          { id: '0', texto: 'Sair', emoji: '👋' },
+        ],
+        proximoEstado: EstadoBot.MENU_PRINCIPAL,
+      };
+    }
+
+    // Menu para comercial
+    if (isComercial) {
+      return {
+        resposta: `🏪 *Bem-vindo ao Chatbot BonnaVitta - Menu Comercial*\n\nO que deseja consultar?\n`,
+        opcoes: [
+          { id: '1', texto: 'Totalizador de Vendas por Supervisor', emoji: '👔' },
+          { id: '2', texto: 'Totalizador de Vendas por Vendedor', emoji: '👥' },
+          { id: '3', texto: 'Vendas por Dia', emoji: '📅' },
+          { id: '4', texto: 'Totalizador por Fabricante', emoji: '🏭' },
+          { id: '0', texto: 'Sair', emoji: '👋' },
+        ],
+        proximoEstado: EstadoBot.MENU_PRINCIPAL,
+      };
+    }
+
+    // Menu para financeiro
+    if (isFinanceiro) {
+      return {
+        resposta: `🏪 *Bem-vindo ao Chatbot BonnaVitta - Menu Financeiro*\n\nO que deseja consultar?\n`,
+        opcoes: [
+          { id: '1', texto: 'Relatório Financeiro', emoji: '💼' },
+          { id: '2', texto: 'Análise de Custos', emoji: '📉' },
+          { id: '0', texto: 'Sair', emoji: '👋' },
+        ],
+        proximoEstado: EstadoBot.MENU_PRINCIPAL,
+      };
+    }
+
+    // Menu padrão (sem role definida)
     return {
       resposta: `🏪 *Bem-vindo ao Chatbot BonnaVitta*\n\nO que deseja consultar?\n`,
       opcoes: [
@@ -13,7 +63,7 @@ class BotFlowService {
         { id: '2', texto: 'Vendas por Dia', emoji: '📅' },
         { id: '3', texto: 'Ranking de Produtos', emoji: '🏆' },
         { id: '4', texto: 'Totalizador por Fabricante', emoji: '🏭' },
-        { id: '5', texto: 'Sair', emoji: '👋' },
+        { id: '0', texto: 'Sair', emoji: '👋' },
       ],
       proximoEstado: EstadoBot.MENU_PRINCIPAL,
     };
