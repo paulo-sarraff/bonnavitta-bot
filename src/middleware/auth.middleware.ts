@@ -94,8 +94,8 @@ export const roleMiddleware = (rolesPermitidos: string[]) => {
         return;
       }
 
-      if (!authService.validarAutorizacao(req.user.role, rolesPermitidos)) {
-        logger.warn(`Acesso negado para usuário ${req.user.id} com role ${req.user.role}`);
+      if (!authService.validarAutorizacao(req.user.roles, rolesPermitidos)) { // ✅ CORRIGIDO: Usar roles (array)
+        logger.warn(`Acesso negado para usuário ${req.user.id} com roles ${req.user.roles.join(', ')}`);
         res.status(403).json({
           success: false,
           mensagem: 'Você não tem permissão para acessar este recurso',
@@ -134,7 +134,7 @@ export const equipeMiddleware = (req: AuthRequest, res: Response, next: NextFunc
       return;
     }
 
-    if (!authService.validarAcessoEquipe(req.user.role, req.user.equipeId, equipeIdSolicitada)) {
+    if (!authService.validarAcessoEquipe(req.user.roles, req.user.equipeId, equipeIdSolicitada)) { // ✅ CORRIGIDO: Usar roles (array)
       logger.warn(
         `Acesso negado à equipe ${equipeIdSolicitada} para usuário ${req.user.id} da equipe ${req.user.equipeId}`
       );
@@ -155,4 +155,3 @@ export const equipeMiddleware = (req: AuthRequest, res: Response, next: NextFunc
   }
 };
 export { AuthRequest };
-

@@ -12,7 +12,7 @@ export const usuariosCadastrados: Usuario[] = [
     email: 'sarraffjr@gmail.com',
     equipeId: 1,
     nomeEquipe: 'Administradores',
-    role: 'admin',
+    roles: ['admin', 'diretoria', 'comercial'], // ✅ NOVO: Múltiplas roles
     ativo: true,
   },
   {
@@ -23,8 +23,32 @@ export const usuariosCadastrados: Usuario[] = [
     email: 'luiz@bonnavitta.com',
     equipeId: 2,
     nomeEquipe: 'Food Service',
-    role: 'diretoria',
+    roles: ['diretoria', 'comercial'], // ✅ NOVO: Múltiplas roles
     ativo: true,
-  }
+  },
+  // ✅ NOVO: Usuário com role comercial
+  {
+    id: 3,
+    cpf: '12345678901',
+    telefone: '92999999999',
+    nome: 'Vendedor Comercial',
+    email: 'vendedor@bonnavitta.com',
+    equipeId: 3,
+    nomeEquipe: 'Vendas',
+    roles: ['comercial'],
+    ativo: true,
+  },
+  // ✅ NOVO: Usuário com role financeiro
+  {
+    id: 4,
+    cpf: '98765432109',
+    telefone: '92988888888',
+    nome: 'Analista Financeiro',
+    email: 'financeiro@bonnavitta.com',
+    equipeId: 4,
+    nomeEquipe: 'Financeiro',
+    roles: ['financeiro'],
+    ativo: true,
+  },
   // Adicione mais usuários conforme necessário
 ];

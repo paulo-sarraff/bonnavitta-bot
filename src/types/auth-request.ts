@@ -9,7 +9,7 @@ export interface AuthRequest extends Request {
     telefone: string;
     equipeId: number;
     nomeEquipe: string;
-    role: 'gerente' | 'vendedor' | 'admin';
+    roles: string[];
     ativo: boolean;
   };
   body: any;
