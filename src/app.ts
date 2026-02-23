@@ -14,6 +14,9 @@ import webhookRoutes from './routes/webhook.routes.js';
 // Importar middleware
 import { authMiddleware } from './middleware/auth.middleware.js';
 
+// ✅ NOVO: Importar sessionService para limpeza de sessões
+import { sessionService } from './services/session.service.js';
+
 const app: Express = express();
 
 // ============================================
@@ -122,6 +125,13 @@ export async function startServer(): Promise<void> {
     logger.info('Inicializando banco de dados...');
     await initializeDatabase();
     logger.info('Banco de dados conectado com sucesso');
+
+    // ✅ NOVO: Iniciar limpeza periódica de sessões expiradas (a cada 1 hora)
+    const intervaloLimpeza = 60 * 60 * 1000; // 1 hora em ms
+    setInterval(() => {
+      sessionService.limparSessoesExpiradas();
+    }, intervaloLimpeza);
+    logger.info('✅ Limpeza periódica de sessões iniciada (a cada 1 hora)');
 
     // Iniciar servidor
     const port = config.api.port;
