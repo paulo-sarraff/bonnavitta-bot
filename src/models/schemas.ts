@@ -10,7 +10,6 @@ export interface Usuario {
   telefone: string;
   equipeId: number;
   nomeEquipe: string;
-  role: 'admin' | 'gerente' | 'vendedor' | 'supervisor' | 'diretoria' | 'comercial' | 'financeiro';
   roles?: string[]; // ✅ NOVO: Suportar múltiplas roles
   ativo: boolean;
 }
