@@ -1,12 +1,33 @@
 import jwt from 'jsonwebtoken';
-import config from '../config/index.js';
-import logger from '../utils/logger.js';
-import { Usuario, LoginResponse } from '../models/schemas.js';
 import { usuariosCadastrados } from '../config/usuarios-cadastrados.js';
+import logger from '../utils/logger.js';
+import config from '../config/index.js';
+import { Usuario } from '../models/schemas.js';
+
+export interface LoginResponse {
+  success: boolean;
+  token?: string;
+  usuario?: Usuario;
+  mensagem: string;
+}
 
 class AuthService {
   /**
-   * Valida credenciais do usuário (busca em arquivo local)
+   * Limpa CPF removendo caracteres especiais
+   */
+  private limparCPF(cpf: string): string {
+    return cpf.replace(/\D/g, '');
+  }
+
+  /**
+   * Limpa telefone removendo caracteres especiais
+   */
+  private limparTelefone(telefone: string): string {
+    return telefone.replace(/\D/g, '');
+  }
+
+  /**
+   * Valida usuário pelo CPF e telefone
    */
   async validarUsuario(cpf: string, telefone: string): Promise<Usuario | null> {
     try {
@@ -37,31 +58,17 @@ class AuthService {
         id: usuarioEncontrado.id,
         cpf: usuarioEncontrado.cpf,
         nome: usuarioEncontrado.nome,
-        email: usuarioEncontrado.email,
+        email: usuarioEncontrado.email || '',
         telefone: usuarioEncontrado.telefone,
         equipeId: usuarioEncontrado.equipeId,
         nomeEquipe: usuarioEncontrado.nomeEquipe,
-        role: usuarioEncontrado.role,
+        roles: usuarioEncontrado.roles, // ✅ CORRIGIDO: Usar roles (array)
         ativo: usuarioEncontrado.ativo,
       };
     } catch (error) {
       logger.error('Erro ao validar usuário:', error);
       throw error;
     }
-  }
-
-  /**
-   * Limpa CPF (remove caracteres especiais)
-   */
-  private limparCPF(cpf: string): string {
-    return cpf.replace(/\D/g, '');
-  }
-
-  /**
-   * Limpa telefone (remove caracteres especiais)
-   */
-  private limparTelefone(telefone: string): string {
-    return telefone.replace(/\D/g, '');
   }
 
   /**
@@ -75,7 +82,7 @@ class AuthService {
           cpf: usuario.cpf,
           nome: usuario.nome,
           equipeId: usuario.equipeId,
-          role: usuario.role,
+          roles: usuario.roles, // ✅ CORRIGIDO: Usar roles (array) em vez de role (string)
         },
         config.jwt.secret,
         { expiresIn: config.jwt.expiration }
@@ -135,13 +142,13 @@ class AuthService {
     }
   }
 
-    /**
+  /**
    * Valida se o usuário possui uma das roles permitidas
    */
-  validarAutorizacao(usuarioRole: string, rolesPermitidos: string[]): boolean {
+  validarAutorizacao(usuarioRoles: string[], rolesPermitidos: string[]): boolean { // ✅ CORRIGIDO: Usar roles (array)
     try {
-      if (!usuarioRole) {
-        logger.warn('Role do usuário não informada');
+      if (!usuarioRoles || usuarioRoles.length === 0) {
+        logger.warn('Roles do usuário não informadas');
         return false;
       }
 
@@ -150,11 +157,12 @@ class AuthService {
         return false;
       }
 
-      const autorizado = rolesPermitidos.includes(usuarioRole);
+      // Verificar se o usuário possui pelo menos uma das roles permitidas
+      const autorizado = usuarioRoles.some(role => rolesPermitidos.includes(role));
 
       if (!autorizado) {
         logger.warn(
-          `Role não autorizada. Role do usuário: ${usuarioRole} | Permitidas: ${rolesPermitidos.join(', ')}`
+          `Role não autorizada. Roles do usuário: ${usuarioRoles.join(', ')} | Permitidas: ${rolesPermitidos.join(', ')}`
         );
       }
 
@@ -165,17 +173,17 @@ class AuthService {
     }
   }
 
-    /**
+  /**
    * Valida se o usuário pode acessar dados de determinada equipe
    */
   validarAcessoEquipe(
-    usuarioRole: string,
+    usuarioRoles: string[], // ✅ CORRIGIDO: Usar roles (array)
     usuarioEquipeId: number,
     equipeIdSolicitada: number
   ): boolean {
     try {
-      if (!usuarioRole) {
-        logger.warn('Role do usuário não informada para validação de equipe');
+      if (!usuarioRoles || usuarioRoles.length === 0) {
+        logger.warn('Roles do usuário não informadas para validação de equipe');
         return false;
       }
 
@@ -184,13 +192,13 @@ class AuthService {
         return false;
       }
 
-      // Admin pode acessar qualquer equipe
-      if (usuarioRole === 'admin') {
+      // Admin, diretoria podem acessar qualquer equipe
+      if (usuarioRoles.includes('admin') || usuarioRoles.includes('diretoria')) {
         return true;
       }
 
-      // Gerente e vendedor só podem acessar a própria equipe
-      if (usuarioRole === 'gerente' || usuarioRole === 'vendedor') {
+      // Comercial e financeiro só podem acessar a própria equipe
+      if (usuarioRoles.includes('comercial') || usuarioRoles.includes('financeiro')) {
         const permitido = usuarioEquipeId === equipeIdSolicitada;
 
         if (!permitido) {
@@ -202,17 +210,13 @@ class AuthService {
         return permitido;
       }
 
-      // Qualquer outro perfil é negado
-      logger.warn(`Role não reconhecida para acesso por equipe: ${usuarioRole}`);
+      logger.warn(`Roles não reconhecidas para validação de equipe: ${usuarioRoles.join(', ')}`);
       return false;
-
     } catch (error) {
-      logger.error('Erro ao validar acesso por equipe:', error);
+      logger.error('Erro ao validar acesso à equipe:', error);
       return false;
     }
   }
-
-
 }
 
 export const authService = new AuthService();
