@@ -55,14 +55,12 @@ class BotFlowService {
       };
     }
 
-    // Menu padrão (sem role definida)
+    // ❌ Menu padrão removido - Todos os usuários devem ter uma role definida
+    // Se chegar aqui, retornar menu vazio
+    logger.warn('Usuário sem role definida. Retornando menu vazio.');
     return {
-      resposta: `🏪 *Bem-vindo ao Chatbot BonnaVitta*\n\nO que deseja consultar?\n`,
+      resposta: `❌ Erro: Sua role não foi definida. Entre em contato com o administrador.`,
       opcoes: [
-        { id: '1', texto: 'Totalizador de Vendas', emoji: '📊' },
-        { id: '2', texto: 'Vendas por Dia', emoji: '📅' },
-        { id: '3', texto: 'Ranking de Produtos', emoji: '🏆' },
-        { id: '4', texto: 'Totalizador por Fabricante', emoji: '🏭' },
         { id: '0', texto: 'Sair', emoji: '👋' },
       ],
       proximoEstado: EstadoBot.MENU_PRINCIPAL,
@@ -123,21 +121,23 @@ class BotFlowService {
 
   /**
    * Processa resposta do usuário
+   * ✅ CORRIGIDO: Adicionar roles para passar ao getMenuPrincipal()
    */
   async processarResposta(
     opcaoSelecionada: string,
     estadoAtual: EstadoBot,
-    contexto: ContextoDados
+    contexto: ContextoDados,
+    roles: string[] = []
   ): Promise<{ proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse }> {
     try {
       logger.info(`Processando resposta: ${opcaoSelecionada} (estado: ${estadoAtual})`);
 
       switch (estadoAtual) {
         case EstadoBot.MENU_PRINCIPAL:
-          return this.processarMenuPrincipal(opcaoSelecionada, contexto);
+          return this.processarMenuPrincipal(opcaoSelecionada, contexto, roles); // CORRIGIDO: Passar roles
 
         case EstadoBot.AGUARDANDO_DATA:
-          return this.processarSelecaoData(opcaoSelecionada, contexto);
+          return this.processarSelecaoData(opcaoSelecionada, contexto, roles); // ✅ CORRIGIDO: Passar roles
 
         case EstadoBot.AGUARDANDO_TIPO_CONSULTA:
           return this.processarTipoConsulta(opcaoSelecionada, contexto);
@@ -149,7 +149,7 @@ class BotFlowService {
           return {
             proximoEstado: EstadoBot.MENU_PRINCIPAL,
             contextoAtualizado: contexto,
-            resposta: this.getMenuPrincipal(),
+            resposta: this.getMenuPrincipal(roles), // ✅ CORRIGIDO: Passar roles
           };
       }
     } catch (error) {
@@ -170,11 +170,25 @@ class BotFlowService {
    */
   private processarMenuPrincipal(
     opcao: string,
-    contexto: ContextoDados
+    contexto: ContextoDados,
+    roles: string[] = []
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
 
-    // Opções válidas do menu principal
-    const opcoesValidas = ['1', '2', '3', '4', '5'];
+    // Opcoes validas do menu principal (incluindo '0' para sair)
+    const opcoesValidas = ['0', '1', '2', '3', '4', '5'];
+
+    // LOGOUT: Opcao 0 - Sair
+    if (opcao === '0') {
+      logger.info('Usuario solicitou logout (opcao 0)');
+      return {
+        proximoEstado: EstadoBot.ENCERRADO,
+        contextoAtualizado: contexto,
+        resposta: {
+          resposta: 'Ate logo! 👋\n\nVoce foi desconectado. Digite seu CPF para fazer login novamente.',
+          proximoEstado: EstadoBot.ENCERRADO,
+        },
+      };
+    }
 
     // 👉 PRIMEIRA MENSAGEM ou texto inválido
     // Apenas reapresenta o menu principal
@@ -182,7 +196,7 @@ class BotFlowService {
       return {
         proximoEstado: EstadoBot.MENU_PRINCIPAL,
         contextoAtualizado: contexto,
-        resposta: this.getMenuPrincipal(),
+        resposta: this.getMenuPrincipal(roles), // CORRIGIDO: Passar roles
       };
     }
 
@@ -190,11 +204,12 @@ class BotFlowService {
 
     // Encerrar atendimento
     if (opcao === '5') {
+      logger.info('Usuario solicitou logout (opcao 5)');
       return {
         proximoEstado: EstadoBot.ENCERRADO,
         contextoAtualizado: contexto,
         resposta: {
-          resposta: 'Até logo! 👋',
+          resposta: 'Ate logo! 👋\n\nVoce foi desconectado. Digite seu CPF para fazer login novamente.',
           proximoEstado: EstadoBot.ENCERRADO,
         },
       };
@@ -210,10 +225,12 @@ class BotFlowService {
 
   /**
    * Processa seleção de data
+   * ✅ CORRIGIDO: Adicionar roles para passar ao getMenuPrincipal()
    */
   private processarSelecaoData(
     opcao: string,
-    contexto: ContextoDados
+    contexto: ContextoDados,
+    roles: string[] = []
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
     const hoje = new Date();
     let dataInicio: Date;
@@ -241,7 +258,7 @@ class BotFlowService {
         return {
           proximoEstado: EstadoBot.MENU_PRINCIPAL,
           contextoAtualizado: contexto,
-          resposta: this.getMenuPrincipal(),
+          resposta: this.getMenuPrincipal(roles), // ✅ CORRIGIDO: Passar roles
         };
       default:
         dataInicio = hoje;
@@ -304,7 +321,7 @@ class BotFlowService {
     return {
       proximoEstado: EstadoBot.MENU_PRINCIPAL,
       contextoAtualizado: contexto,
-      resposta: this.getMenuPrincipal(),
+      resposta: this.getMenuPrincipal(roles), // CORRIGIDO: Passar roles
     };
   }
 
