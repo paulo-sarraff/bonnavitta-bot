@@ -213,10 +213,14 @@ export class BotController {
       // =========================
       // PROCESSAR FLUXO NORMAL
       // =========================
+      // ✅ CORRIGIDO: Passar roles do usuário para processarResposta
+      const usuarioSession = usuariosCadastrados.find(u => u.id === sessao.usuarioId);
+      const usuarioRoles = usuarioSession?.roles || [];
       const resultadoFluxo = await botFlowService.processarResposta(
         mensagem,
         (sessao.estadoAtual as EstadoBot) || EstadoBot.MENU_PRINCIPAL,
-        sessao.dadosContexto || {}
+        sessao.dadosContexto || {},
+        usuarioRoles
       );
 
       // Atualizar estado da sessão
@@ -225,6 +229,22 @@ export class BotController {
         resultadoFluxo.proximoEstado,
         resultadoFluxo.contextoAtualizado
       );
+
+      // =========================
+      // TRATAMENTO DE LOGOUT
+      // =========================
+      if (resultadoFluxo.proximoEstado === EstadoBot.ENCERRADO) {
+        logger.info(`Sessao ${sessao.id} encerrada (logout)`);
+        // Resetar sessao para estado inicial (AGUARDANDO_CPF)
+        await sessionService.resetarSessao(chatId, canal as 'telegram' | 'whatsapp');
+        
+        return {
+          resposta: resultadoFluxo.resposta.resposta,
+          opcoes: [],
+          grafico: null,
+          proximoEstado: EstadoBot.AGUARDANDO_CPF, // Retornar para tela de login
+        };
+      }
 
       // =========================
       // PROCESSAMENTO DE CONSULTA
@@ -299,7 +319,7 @@ export class BotController {
         if (tipoConsulta === '3') {
           const vendas = await vendasService.getVendasPorEquipe(dataInicio, dataFim);
           const texto = vendasService.formatarVendasPorEquipe(vendas);
-          const grafico = ''//await chartService.gerarGraficoVendasPorEquipe(vendas);
+          const grafico = '';//await chartService.gerarGraficoVendasPorEquipe(vendas);
           return { texto, grafico };
         }
 

@@ -62,7 +62,7 @@ class AuthService {
         telefone: usuarioEncontrado.telefone,
         equipeId: usuarioEncontrado.equipeId,
         nomeEquipe: usuarioEncontrado.nomeEquipe,
-        roles: usuarioEncontrado.roles, // ✅ CORRIGIDO: Usar roles (array)
+        roles: usuarioEncontrado.roles, // CORRIGIDO: Usar roles (array)
         ativo: usuarioEncontrado.ativo,
       };
     } catch (error) {
