@@ -6,7 +6,7 @@ class BotFlowService {
    * Menu principal - Alinhado com o menu do cliente
    * ✅ CORRIGIDO: Aceita roles e retorna menu diferente conforme a role
    */
-  getMenuPrincipal(roles: string[] = []): MensagemBotResponse {
+  getMenuPrincipal(roles: string[] = [], nomeUsuario: string): MensagemBotResponse {
     logger.info(`Gerando menu principal para roles: ${roles.join(', ')}`);
     
     // Verificar se é admin ou diretoria (acesso a todos os menus)
@@ -17,7 +17,7 @@ class BotFlowService {
     // Menu para admin/diretoria (todos os acessos)
     if (isAdminOrDiretoria) {
       return {
-        resposta: `🏪 *Bem-vindo ao Chatbot BonnaVitta*\n\nO que deseja consultar?\n`,
+        resposta: `🏪 ${nomeUsuario}, o que deseja consultar?\n`,
         opcoes: [
           { id: '1', texto: 'Menu Comercial', emoji: '📊' },
           { id: '2', texto: 'Menu Financeiro', emoji: '💰' },
@@ -127,17 +127,18 @@ class BotFlowService {
     opcaoSelecionada: string,
     estadoAtual: EstadoBot,
     contexto: ContextoDados,
-    roles: string[] = []
+    roles: string[] = [],
+    nomeUsuario: string
   ): Promise<{ proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse }> {
     try {
       logger.info(`Processando resposta: ${opcaoSelecionada} (estado: ${estadoAtual})`);
 
       switch (estadoAtual) {
         case EstadoBot.MENU_PRINCIPAL:
-          return this.processarMenuPrincipal(opcaoSelecionada, contexto, roles); // CORRIGIDO: Passar roles
+          return this.processarMenuPrincipal(opcaoSelecionada, contexto, roles, nomeUsuario); // CORRIGIDO: Passar roles
 
         case EstadoBot.AGUARDANDO_DATA:
-          return this.processarSelecaoData(opcaoSelecionada, contexto, roles); // ✅ CORRIGIDO: Passar roles
+          return this.processarSelecaoData(opcaoSelecionada, contexto, roles, nomeUsuario); // ✅ CORRIGIDO: Passar roles
 
         case EstadoBot.AGUARDANDO_TIPO_CONSULTA:
           return this.processarTipoConsulta(opcaoSelecionada, contexto);
@@ -149,7 +150,7 @@ class BotFlowService {
           return {
             proximoEstado: EstadoBot.MENU_PRINCIPAL,
             contextoAtualizado: contexto,
-            resposta: this.getMenuPrincipal(roles), // ✅ CORRIGIDO: Passar roles
+            resposta: this.getMenuPrincipal(roles, nomeUsuario), // ✅ CORRIGIDO: Passar roles
           };
       }
     } catch (error) {
@@ -171,7 +172,8 @@ class BotFlowService {
   private processarMenuPrincipal(
     opcao: string,
     contexto: ContextoDados,
-    roles: string[] = []
+    roles: string[] = [],
+    nomeUsuario: string
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
 
     // Opcoes validas do menu principal (incluindo '0' para sair)
@@ -196,7 +198,7 @@ class BotFlowService {
       return {
         proximoEstado: EstadoBot.MENU_PRINCIPAL,
         contextoAtualizado: contexto,
-        resposta: this.getMenuPrincipal(roles), // CORRIGIDO: Passar roles
+        resposta: this.getMenuPrincipal(roles, nomeUsuario), // CORRIGIDO: Passar roles
       };
     }
 
@@ -230,7 +232,8 @@ class BotFlowService {
   private processarSelecaoData(
     opcao: string,
     contexto: ContextoDados,
-    roles: string[] = []
+    roles: string[] = [],
+    nomeUsuario: string
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
     const hoje = new Date();
     let dataInicio: Date;
@@ -258,7 +261,7 @@ class BotFlowService {
         return {
           proximoEstado: EstadoBot.MENU_PRINCIPAL,
           contextoAtualizado: contexto,
-          resposta: this.getMenuPrincipal(roles), // ✅ CORRIGIDO: Passar roles
+          resposta: this.getMenuPrincipal(roles, nomeUsuario), // ✅ CORRIGIDO: Passar roles
         };
       default:
         dataInicio = hoje;
@@ -321,7 +324,7 @@ class BotFlowService {
     return {
       proximoEstado: EstadoBot.MENU_PRINCIPAL,
       contextoAtualizado: contexto,
-      resposta: this.getMenuPrincipal(roles), // CORRIGIDO: Passar roles
+      resposta: this.getMenuPrincipal(roles, nomeUsuario), // CORRIGIDO: Passar roles
     };
   }
 

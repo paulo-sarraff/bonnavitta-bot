@@ -180,7 +180,7 @@ export class BotController {
 
         return {
           resposta: `✅ Login realizado com sucesso!\n\nBem-vindo, ${usuarioValidado.nome}! 🎉`,
-          opcoes: botFlowService.getMenuPrincipal(usuarioValidado.roles).opcoes, // ✅ CORRIGIDO: Passar roles
+          opcoes: botFlowService.getMenuPrincipal(usuarioValidado.roles, usuarioValidado.nome).opcoes, // ✅ CORRIGIDO: Passar roles
           proximoEstado: EstadoBot.MENU_PRINCIPAL,
         };
       }
@@ -201,7 +201,7 @@ export class BotController {
 
         const usuario = usuariosCadastrados.find(u => u.id === sessao.usuarioId);
         const roles = usuario?.roles || [];
-        const menu = botFlowService.getMenuPrincipal(roles); // ✅ CORRIGIDO: Passar roles
+        const menu = botFlowService.getMenuPrincipal(roles, usuario?.nome || ''); // ✅ CORRIGIDO: Passar roles
         
         return {
           resposta: menu.resposta,
@@ -220,7 +220,8 @@ export class BotController {
         mensagem,
         (sessao.estadoAtual as EstadoBot) || EstadoBot.MENU_PRINCIPAL,
         sessao.dadosContexto || {},
-        usuarioRoles
+        usuarioRoles, 
+        usuarioSession?.nome || ''
       );
 
       // Atualizar estado da sessão
@@ -359,26 +360,6 @@ export class BotController {
     } catch (error) {
       logger.error('Erro ao processar consulta:', error);
       return { texto: 'Erro ao processar consulta', grafico: null };
-    }
-  }
-
-  /**
-   * Obter menu principal
-   * GET /api/bot/menu
-   */
-  async getMenuPrincipal(_req: Request, res: Response): Promise<void> {
-    try {
-      const menu = botFlowService.getMenuPrincipal();
-      res.status(200).json({
-        success: true,
-        menu,
-      });
-    } catch (error) {
-      logger.error('Erro ao obter menu:', error);
-      res.status(500).json({
-        success: false,
-        mensagem: 'Erro ao obter menu',
-      });
     }
   }
 
