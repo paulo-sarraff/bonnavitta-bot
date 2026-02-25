@@ -12,7 +12,7 @@ export const usuariosCadastrados: Usuario[] = [
     email: 'sarraffjr@gmail.com',
     equipeId: 1,
     nomeEquipe: 'Administradores',
-    roles: ['admin', 'diretoria', 'comercial'], // ✅ NOVO: Múltiplas roles
+    roles: ['admin', 'diretoria', 'comercial'],
     ativo: true,
   },
   {
@@ -23,10 +23,9 @@ export const usuariosCadastrados: Usuario[] = [
     email: 'luiz@bonnavitta.com',
     equipeId: 2,
     nomeEquipe: 'Food Service',
-    roles: ['diretoria', 'comercial'], // ✅ NOVO: Múltiplas roles
+    roles: ['diretoria', 'comercial'],
     ativo: true,
   },
-  // ✅ NOVO: Usuário com role comercial
   {
     id: 3,
     cpf: '12345678901',
