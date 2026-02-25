@@ -52,7 +52,7 @@ export const usuariosCadastrados: Usuario[] = [
     id: 5,
     cpf: '00422812293',
     telefone: '92981940699',
-    nome: 'Ian Goes',
+    nome: 'Yan Goes',
     email: 'yan@patrimonio.com',
     equipeId: 4,
     nomeEquipe: 'Diretoria',
