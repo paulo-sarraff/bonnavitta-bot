@@ -39,6 +39,43 @@ export function formatarDataHora(data: Date | string): string {
 }
 
 /**
+ * Pega as datas da última semana (7 dias) de segunda a sexta
+ */
+export function getPreviousWeekRange(): { start: Date; end: Date } {
+  const today = new Date();
+
+  // Clona a data atual
+  const currentDate = new Date(today);
+
+  // getDay(): 0 (Domingo) até 6 (Sábado)
+  const dayOfWeek = currentDate.getDay();
+
+  // Ajusta para considerar segunda como início da semana
+  // Se for domingo (0), precisamos tratar como 7
+  const adjustedDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+
+  // Volta para a segunda-feira da semana atual
+  currentDate.setDate(currentDate.getDate() - adjustedDay + 1);
+
+  // Agora voltamos 7 dias para pegar a segunda da semana anterior
+  const startOfPreviousWeek = new Date(currentDate);
+  startOfPreviousWeek.setDate(startOfPreviousWeek.getDate() - 7);
+
+  // Domingo da semana anterior
+  const endOfPreviousWeek = new Date(startOfPreviousWeek);
+  endOfPreviousWeek.setDate(endOfPreviousWeek.getDate() + 6);
+
+  // Zera horários
+  startOfPreviousWeek.setHours(0, 0, 0, 0);
+  endOfPreviousWeek.setHours(23, 59, 59, 999);
+
+  return {
+    start: startOfPreviousWeek,
+    end: endOfPreviousWeek,
+  };
+}
+
+/**
  * Formata percentual
  */
 export function formatarPercentual(valor: number, casasDecimais: number = 2): string {

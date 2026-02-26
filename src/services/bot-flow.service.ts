@@ -1,5 +1,6 @@
 import logger from '../utils/logger.js';
 import { EstadoBot, MensagemBotResponse, ContextoDados } from '../models/schemas.js';
+import { getPreviousWeekRange } from '../utils/formatter.js';
 
 class BotFlowService {
   /**
@@ -248,10 +249,13 @@ class BotFlowService {
         dataFim = dataInicio;
         break;
       case '3':
-        dataInicio = new Date(hoje.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const { start, end } = getPreviousWeekRange();
+        dataInicio = start;
+        dataFim = end;
         break;
       case '4':
         dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        dataFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
         break;
       case '5':
         dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
@@ -261,7 +265,7 @@ class BotFlowService {
         return {
           proximoEstado: EstadoBot.MENU_PRINCIPAL,
           contextoAtualizado: contexto,
-          resposta: this.getMenuPrincipal(roles, nomeUsuario), // ✅ CORRIGIDO: Passar roles
+          resposta: this.getMenuPrincipal(roles, nomeUsuario),
         };
       default:
         dataInicio = hoje;
