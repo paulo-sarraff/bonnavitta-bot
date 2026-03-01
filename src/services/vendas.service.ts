@@ -180,6 +180,34 @@ class VendasService {
    * ✅ NOVO: Obtém vendas por vendedor em uma equipe específica
    * Retorna lista de vendedores com seus totais
    */
+
+  /**
+   * ⚠️ PENDENTE DE SP — aguardando criação de sp_GetVendasPorVendedorComCodigo
+   * (script: scripts/03_sp_vendedores_por_supervisor.sql)
+   * Substitui getVendasPorVendedor() — retorna SetorClientes e ordena por código ASC.
+   * Quando disponível, trocar a chamada no controller por getVendasPorVendedorComCodigo().
+   */
+  async getVendasPorVendedorComCodigo(
+    dataInicio: string,
+    dataFim: string,
+  ): Promise<{ SetorClientes: number; NomeVendedor: string; NomeSupervisor: string; TotalVendas: number; QuantidadePedidos: number; TicketMedio: number }[]> {
+    try {
+      const db = await getDatabase();
+      const request = new sql.Request(db);
+
+      request.input('DataInicio', sql.Date, dataInicio);
+      request.input('DataFim', sql.Date, dataFim);
+
+      const result = await request.execute('sp_GetVendasPorVendedorComCodigo');
+
+      logger.info(`Vendas por vendedor com código: ${result.recordset.length} registros`);
+      return result.recordset;
+    } catch (error) {
+      logger.error('Erro ao obter vendas por vendedor com código:', error);
+      throw error;
+    }
+  }
+
   async getVendasPorVendedorEmEquipe(
     dataInicio: string,
     dataFim: string,
@@ -282,6 +310,36 @@ class VendasService {
   /**
    * Obtém vendas por fabricante em um período
    */
+
+  /**
+   * ⚠️ PENDENTE DE SP — aguardando criação de sp_GetFabricantesPorSupervisor
+   * (script: scripts/03_sp_vendedores_por_supervisor.sql)
+   * Obtém top fabricantes de um supervisor específico
+   * Retorna: NomeFabricante, TotalVendas, QuantidadePedidos, TicketMedio
+   */
+  async getFabricantesPorSupervisor(
+    dataInicio: string,
+    dataFim: string,
+    nomeSupervisor: string
+  ): Promise<{ NomeFabricante: string; TotalVendas: number; QuantidadePedidos: number; TicketMedio: number }[]> {
+    try {
+      const db = await getDatabase();
+      const request = new sql.Request(db);
+
+      request.input('DataInicio', sql.Date, dataInicio);
+      request.input('DataFim', sql.Date, dataFim);
+      request.input('NomeSupervisor', sql.NVarChar, nomeSupervisor);
+
+      const result = await request.execute('sp_GetFabricantesPorSupervisor');
+
+      logger.info(`Fabricantes do supervisor ${nomeSupervisor}: ${result.recordset.length} registros`);
+      return result.recordset;
+    } catch (error) {
+      logger.error('Erro ao obter fabricantes por supervisor:', error);
+      throw error;
+    }
+  }
+
   async getVendasPorFabricante(
     dataInicio: string,
     dataFim: string
