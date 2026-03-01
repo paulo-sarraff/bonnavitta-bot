@@ -2,6 +2,64 @@
  * Formatadores de dados
  */
 
+// Fuso horário local da operação
+const TIMEZONE = 'America/Manaus'; // GMT-4 (sem horário de verão)
+
+/**
+ * Retorna a data/hora atual no fuso de Manaus como objeto Date
+ * cujos campos (getFullYear, getMonth, getDate, etc.) refletem
+ * a hora local — não UTC.
+ *
+ * Estratégia: formata a data atual em Manaus via Intl e reconstrói
+ * um Date a partir dessa string, evitando dependências externas.
+ */
+export function hojeManaus(): Date {
+  const agora = new Date();
+  // Formata no fuso de Manaus: "2024-01-15T20:30:00"
+  const partes = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(agora).replace(' ', 'T');
+
+  // Reconstrói sem indicador de timezone → tratado como local pelo motor JS
+  return new Date(partes);
+}
+
+/**
+ * Converte uma Date para string YYYY-MM-DD no fuso de Manaus
+ */
+export function toDateStringManaus(date: Date): string {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+/**
+ * Converte nome do dia da semana retornado pelo SQL Server (inglês)
+ * para português. DATENAME(WEEKDAY) depende do LANGUAGE da instância.
+ */
+export function diaSemanaParaPtBR(dia: string): string {
+  const mapa: Record<string, string> = {
+    Monday: 'Segunda-feira',
+    Tuesday: 'Terça-feira',
+    Wednesday: 'Quarta-feira',
+    Thursday: 'Quinta-feira',
+    Friday: 'Sexta-feira',
+    Saturday: 'Sábado',
+    Sunday: 'Domingo',
+  };
+  return mapa[dia] ?? dia;
+}
+
 /**
  * Formata valor em moeda brasileira
  */
@@ -39,39 +97,50 @@ export function formatarDataHora(data: Date | string): string {
 }
 
 /**
- * Pega as datas da última semana (7 dias) de segunda a sexta
+ * Pega as datas da última semana (Segunda a Domingo) no fuso de Manaus
  */
 export function getPreviousWeekRange(): { start: Date; end: Date } {
-  const today = new Date();
-
-  // Clona a data atual
+  const today = hojeManaus();
   const currentDate = new Date(today);
-
-  // getDay(): 0 (Domingo) até 6 (Sábado)
   const dayOfWeek = currentDate.getDay();
-
-  // Ajusta para considerar segunda como início da semana
-  // Se for domingo (0), precisamos tratar como 7
   const adjustedDay = dayOfWeek === 0 ? 7 : dayOfWeek;
 
-  // Volta para a segunda-feira da semana atual
   currentDate.setDate(currentDate.getDate() - adjustedDay + 1);
 
-  // Agora voltamos 7 dias para pegar a segunda da semana anterior
   const startOfPreviousWeek = new Date(currentDate);
   startOfPreviousWeek.setDate(startOfPreviousWeek.getDate() - 7);
 
-  // Domingo da semana anterior
   const endOfPreviousWeek = new Date(startOfPreviousWeek);
   endOfPreviousWeek.setDate(endOfPreviousWeek.getDate() + 6);
 
-  // Zera horários
   startOfPreviousWeek.setHours(0, 0, 0, 0);
   endOfPreviousWeek.setHours(23, 59, 59, 999);
 
   return {
     start: startOfPreviousWeek,
     end: endOfPreviousWeek,
+  };
+}
+
+/**
+ * Pega as datas da semana atual (Segunda a Domingo) no fuso de Manaus
+ */
+export function getCurrentWeekRange(): { start: Date; end: Date } {
+  const today = hojeManaus();
+  const dayOfWeek = today.getDay();
+  const adjustedDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+
+  const startOfCurrentWeek = new Date(today);
+  startOfCurrentWeek.setDate(today.getDate() - adjustedDay + 1);
+  startOfCurrentWeek.setHours(0, 0, 0, 0);
+
+  const endOfCurrentWeek = new Date(startOfCurrentWeek);
+  endOfCurrentWeek.setDate(startOfCurrentWeek.getDate() + 6);
+  endOfCurrentWeek.setHours(23, 59, 59, 999);
+
+  return {
+    start: startOfCurrentWeek,
+    end: endOfCurrentWeek,
   };
 }
 
