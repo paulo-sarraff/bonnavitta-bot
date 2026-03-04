@@ -9,7 +9,7 @@ import { EstadoBot } from '../models/schemas.js';
 import { BotProcessResult } from '../models/bot-response.js';
 import { authService } from '../services/auth.service.js';
 import { usuariosCadastrados } from '../config/usuarios-cadastrados.js';
-import { formatarNumero, formatarData, formatarIntervaloData, diaSemanaParaPtBR } from '../utils/formatter.js';
+import { formatarNumero, formatarData, formatarIntervaloData, diaSemanaParaPtBR, calcDiaSemana, buildDateString, ultimoDiaMes, addDays } from '../utils/formatter.js';
 
 export class BotController {
 
@@ -281,7 +281,11 @@ export class BotController {
     contexto: any;
   }> {
     try {
-      const { subFluxo, dataInicio, dataFim } = contexto;
+      const { subFluxo, dataInicio } = contexto;
+      // ⚠️ TEMPORÁRIO — WHERE Data BETWEEN nas SPs compara DateTime vs DATE,
+      // excluindo o último dia. Passa dataFim+1 até que o script
+      // 04_fix_where_cast_date.sql seja executado no banco.
+      const dataFim = addDays(contexto.dataFim, 1);
 
       // ── 1. Carregar lista de supervisores e exibir ─────────────────────────
       if (subFluxo === 'carregar_supervisores') {
@@ -336,29 +340,11 @@ export class BotController {
       if (subFluxo === 'analise_supervisor') {
         const { supervisorNome } = contexto;
 
-        // ⚠️ SOLUÇÃO TEMPORÁRIA — substituir quando sp_GetVendasPorVendedorDoSupervisor
-        // estiver criada no banco (script: scripts/03_sp_vendedores_por_supervisor.sql).
-        // Estratégia atual:
-        //   1. Busca as equipes do supervisor via sp_GetVendasPorSupervisorPorEquipe
-        //   2. Para cada equipe, busca os vendedores via sp_GetVendasPorVendedorEmEquipe
-        //   3. Consolida e reordena tudo por SetorClientes ASC no código
-        const equipes = await vendasService.getVendasPorSupervisorPorEquipe(dataInicio, dataFim, supervisorNome);
-        const vendedoresPorEquipe = await Promise.all(
-          equipes.map((e: any) =>
-            vendasService.getVendasPorVendedorEmEquipe(dataInicio, dataFim, e.EquipeNome)
-          )
-        );
-        const vendedores = vendedoresPorEquipe
-          .flat()
-          .sort((a: any, b: any) => (a.SetorClientes ?? 0) - (b.SetorClientes ?? 0));
-        // ⚠️ FIM SOLUÇÃO TEMPORÁRIA
+        // ⚠️ SOLUÇÃO TEMPORÁRIA removida — sp_GetVendasPorVendedorDoSupervisor disponível no banco
+        const vendedores = await vendasService.getVendasPorVendedorDoSupervisor(dataInicio, dataFim, supervisorNome);
 
-        // ⚠️ SOLUÇÃO TEMPORÁRIA — substituir quando sp_GetFabricantesPorSupervisor
-        // estiver criada no banco (script: scripts/03_sp_vendedores_por_supervisor.sql).
-        // Quando disponível, trocar a linha abaixo por:
-        // const fabricantes = await vendasService.getFabricantesPorSupervisor(dataInicio, dataFim, supervisorNome);
-        const fabricantes = await vendasService.getVendasPorFabricante(dataInicio, dataFim);
-        // ⚠️ FIM SOLUÇÃO TEMPORÁRIA
+        // ⚠️ SOLUÇÃO TEMPORÁRIA removida — sp_GetFabricantesPorSupervisor disponível no banco
+        const fabricantes = await vendasService.getFabricantesPorSupervisor(dataInicio, dataFim, supervisorNome);
 
         let texto = `👔 *Análise — Supervisor: ${supervisorNome.trim()}*\n`;
         texto += `📅 Período: ${this.formatarPeriodo(dataInicio, dataFim)}\n\n`;
@@ -400,20 +386,9 @@ export class BotController {
       // ── 3. Carregar lista de vendedores e exibir ───────────────────────────
       if (subFluxo === 'carregar_vendedores') {
 
-        // ⚠️ SOLUÇÃO TEMPORÁRIA — substituir quando sp_GetVendasPorVendedorComCodigo
-        // estiver criada no banco (script: scripts/03_sp_vendedores_por_supervisor.sql).
-        // Limitações atuais:
-        //   - sp_GetVendasPorVendedor não retorna SetorClientes (código do vendedor)
-        //   - Vendedores sem venda no período não aparecem (sem tabela de cadastro)
-        // Quando disponível, trocar por:
-        //   const vendas = await vendasService.getVendasPorVendedorComCodigo(dataInicio, dataFim);
-        const vendas = await vendasService.getVendasPorVendedor(dataInicio, dataFim);
-        const vendasOrdenadas = [...vendas].sort((a: any, b: any) => {
-          const cA = parseInt(a.SetorClientes ?? '0', 10) || 0;
-          const cB = parseInt(b.SetorClientes ?? '0', 10) || 0;
-          return cA - cB;
-        });
-        // ⚠️ FIM SOLUÇÃO TEMPORÁRIA
+        // ⚠️ SOLUÇÃO TEMPORÁRIA removida — sp_GetVendasPorVendedorComCodigo disponível no banco
+        const vendas = await vendasService.getVendasPorVendedorComCodigo(dataInicio, dataFim);
+        const vendasOrdenadas = [...vendas];
 
         const novoContexto = { ...contexto, vendedoresCarregados: vendasOrdenadas };
 
@@ -493,10 +468,12 @@ export class BotController {
           } else {
             // Extenso padrão (dia a dia)
             vendas.forEach((v: any) => {
-            const data = formatarData(v.Data + 'T12:00:00');
-            const diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-            const dia = diasSemana[parseInt(v.DiaSemana) || 0];
-
+              // v.Data vem como objeto Date do driver mssql — não concatenar string
+              const dataObj: Date = v.Data instanceof Date ? v.Data : new Date(v.Data);
+              const data = dataObj.toLocaleDateString('pt-BR', { timeZone: 'America/Manaus' });
+              // Calcular dia da semana direto do objeto Date — ignora DiaSemana do banco
+              // que depende do @@LANGUAGE/@@DATEFIRST do SQL Server e pode ser impreciso
+              const dia = calcDiaSemana(dataObj);
               texto += `*${data}* (${dia})\n`;
               texto += `  Venda: R$ ${this.formatarMoeda(v.TotalVendas)} | Pedidos: ${v.QuantidadePedidos}\n`;
             });
@@ -520,15 +497,47 @@ export class BotController {
       // ── 6. Fabricante (totalizador direto) ────────────────────────────────
       if (subFluxo === 'fabricante') {
         const vendas = await vendasService.getVendasPorFabricante(dataInicio, dataFim);
-        const texto = vendasService.formatarVendasPorFabricante(vendas);
-        const menuPrincipal = botFlowService.getMenuPrincipal(roles, nomeUsuario);
+
+        // Salvar lista no contexto para reuso ao escolher fabricante
+        const novoContexto = { ...contexto, fabricantesCarregados: vendas };
+
+        const pergunta = botFlowService.montarPerguntaFabricante(novoContexto);
 
         return {
-          texto: texto + `\n\n${menuPrincipal.resposta}`,
-          opcoes: menuPrincipal.opcoes,
+          texto: pergunta.resposta,
           grafico: null,
-          proximoEstado: EstadoBot.MENU_PRINCIPAL,
-          contexto: {},
+          proximoEstado: EstadoBot.EXIBINDO_LISTA_FABRICANTE,
+          contexto: novoContexto,
+        };
+      }
+
+      // ── 6. Detalhe de fabricante específico ───────────────────────────────
+      if (subFluxo === 'detalhe_fabricante') {
+        const { nomeFabricante } = contexto;
+        const detalhe = await vendasService.getDetalheFabricante(dataInicio, dataFim, nomeFabricante);
+
+        let texto = '';
+        if (!detalhe || !detalhe.NomeFabricante) {
+          texto = `❌ Nenhum dado encontrado para *${nomeFabricante}* no período.\n`;
+        } else {
+          texto = `📊 *Resumo Analítico — ${this.limparTexto(detalhe.NomeFabricante)}*\n`;
+          texto += `📅 Período: ${this.formatarPeriodo(contexto.dataInicio, contexto.dataFim)}\n\n`;
+          texto += `💰 Valor total: R$ ${this.formatarMoeda(detalhe.TotalVendas)}\n`;
+          texto += `📦 Quantidade de pedidos: ${detalhe.QuantidadePedidos}\n`;
+          texto += `👤 Vendedores envolvidos: ${detalhe.QuantidadeVendedores}\n`;
+          texto += `🏪 Clientes atendidos: ${detalhe.QuantidadeClientes}\n`;
+          texto += `🏆 Produto mais vendido: ${this.limparTexto(detalhe.ProdutoMaisVendido)}\n`;
+          texto += `📊 Quantidade vendida: ${detalhe.QuantidadeProdutoMaisVendido} vol.\n`;
+        }
+
+        const pergunta = botFlowService.getPerguntaOutroFabricante();
+
+        return {
+          texto: texto + `\n${pergunta.resposta}`,
+          opcoes: pergunta.opcoes,
+          grafico: null,
+          proximoEstado: EstadoBot.EXIBINDO_DETALHE_FABRICANTE,
+          contexto,
         };
       }
 
@@ -581,10 +590,11 @@ export class BotController {
     const nomesMes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
     vendas.forEach(v => {
-      const dataFormatada = formatarData(v.Data + 'T12:00:00');
-      const [dia, mes, ano] = dataFormatada.split('/');
-      const chave = `${ano}-${mes}`;
-
+      const d: Date = v.Data instanceof Date ? v.Data : new Date(v.Data);
+      // Extrair ano/mês no fuso de Manaus via Intl para evitar off-by-one
+      const partes = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Manaus', year: 'numeric', month: '2-digit' }).format(d);
+      const [mmStr, aaaStr] = partes.split('/');
+      const chave = `${aaaStr}-${mmStr}`;
       if (!meses[chave]) meses[chave] = { total: 0, pedidos: 0 };
       meses[chave].total += v.TotalVendas;
       meses[chave].pedidos += v.QuantidadePedidos;
@@ -603,12 +613,22 @@ export class BotController {
     const semanas: Record<string, { total: number; pedidos: number; inicio: Date; fim: Date }> = {};
 
     vendas.forEach(v => {
-      const d = new Date(v.Data + 'T12:00:00');
-      const dia = d.getDay() === 0 ? 7 : d.getDay();
-      const inicioSemana = new Date(d);
-      inicioSemana.setDate(d.getDate() - dia + 1);
-      inicioSemana.setHours(0, 0, 0, 0);
-      const chave = inicioSemana.toISOString().split('T')[0];
+      // v.Data vem como objeto Date do driver mssql — não concatenar string
+      const d: Date = v.Data instanceof Date ? v.Data : new Date(v.Data);
+      // Extrair dia da semana no fuso de Manaus via Intl
+      const diaSemanaManaus = parseInt(
+        new Intl.DateTimeFormat('en-US', { timeZone: 'America/Manaus', weekday: 'short' })
+          .format(d)
+          .replace(/[^0-9]/g, '') || String(d.getDay()),
+        10
+      );
+      // Usar a data local de Manaus para calcular início da semana
+      const dataLocalStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Manaus' }).format(d);
+      const dataLocal = new Date(dataLocalStr + 'T00:00:00');
+      const diaN = dataLocal.getDay() === 0 ? 7 : dataLocal.getDay();
+      const inicioSemana = new Date(dataLocal);
+      inicioSemana.setDate(dataLocal.getDate() - diaN + 1);
+      const chave = new Intl.DateTimeFormat('sv-SE').format(inicioSemana); // YYYY-MM-DD
 
       if (!semanas[chave]) {
         const fimSemana = new Date(inicioSemana);
