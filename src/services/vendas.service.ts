@@ -414,6 +414,29 @@ class VendasService {
     }
   }
 
+  async getVendasPorVendedorDoSupervisor(
+    dataInicio: string,
+    dataFim: string,
+    nomeSupervisor: string
+  ): Promise<VendasPorVendedorEmEquipe[]> {
+    try {
+      const db = await getDatabase();
+      const request = new sql.Request(db);
+
+      request.input('DataInicio', sql.Date, dataInicio);
+      request.input('DataFim', sql.Date, dataFim);
+      request.input('NomeSupervisor', sql.NVarChar, nomeSupervisor);
+
+      const result = await request.execute('sp_GetVendasPorVendedorDoSupervisor');
+
+      logger.info(`Vendas por vendedor do supervisor ${nomeSupervisor}: ${result.recordset.length} registros`);
+      return result.recordset;
+    } catch (error) {
+      logger.error('Erro ao obter vendas por vendedor do supervisor:', error);
+      throw error;
+    }
+  }
+
   /**
    * Obtém vendas por equipe em um período
    */

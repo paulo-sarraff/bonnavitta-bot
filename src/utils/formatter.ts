@@ -44,8 +44,38 @@ export function toDateStringManaus(date: Date): string {
 }
 
 /**
+ * Constrói uma string YYYY-MM-DD a partir de componentes numéricos,
+ * sem instanciar Date — evita bugs de timezone ao usar new Date(ano, mes, dia).
+ */
+export function buildDateString(ano: number, mes: number, dia: number): string {
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+}
+
+/**
+ * Avança uma data YYYY-MM-DD em N dias, sem instanciar Date com timezone.
+ * Usado para contornar o bug das SPs: WHERE Data BETWEEN @DataInicio AND @DataFim
+ * compara DateTime vs DATE, excluindo o último dia (hora > 00:00:00).
+ * ⚠️ TEMPORÁRIO — remover quando o script 04_fix_where_cast_date.sql for executado no banco.
+ */
+export function addDays(dateStr: string, days: number): string {
+  const [ano, mes, dia] = dateStr.split('-').map(Number);
+  const d = new Date(ano, mes - 1, dia + days);
+  return buildDateString(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
+
+/**
+ * Retorna o último dia de um mês como número.
+ * Usa o truque nativo: dia 0 do mês seguinte = último dia do mês atual.
+ * Isso é seguro pois não envolve formatação de fuso.
+ */
+export function ultimoDiaMes(ano: number, mes: number): number {
+  return new Date(ano, mes, 0).getDate();
+}
+
+/**
  * Converte nome do dia da semana retornado pelo SQL Server (inglês)
  * para português. DATENAME(WEEKDAY) depende do LANGUAGE da instância.
+ * @deprecated — prefira calcDiaSemana(date) que deriva o dia direto do objeto Date
  */
 export function diaSemanaParaPtBR(dia: string): string {
   const mapa: Record<string, string> = {
@@ -58,6 +88,18 @@ export function diaSemanaParaPtBR(dia: string): string {
     Sunday: 'Domingo',
   };
   return mapa[dia] ?? dia;
+}
+
+/**
+ * Retorna o nome do dia da semana em português a partir de um objeto Date,
+ * considerando o fuso de Manaus. Não depende do LANGUAGE do SQL Server.
+ * Usar sempre que a data vier do banco como objeto Date (driver mssql).
+ */
+export function calcDiaSemana(date: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Manaus',
+    weekday: 'long',
+  }).format(date);
 }
 
 /**
