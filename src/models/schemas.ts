@@ -167,6 +167,8 @@ export enum EstadoBot {
   // ── Item 4: Fabricante ──────────────────────────────────────────────────────
   // Período → Processamento direto
   AGUARDANDO_PERIODO_FABRICANTE = 'aguardando_periodo_fabricante',
+  EXIBINDO_LISTA_FABRICANTE = 'exibindo_lista_fabricante',
+  EXIBINDO_DETALHE_FABRICANTE = 'exibindo_detalhe_fabricante',
 
   // ── Estados genéricos / legados ─────────────────────────────────────────────
   MENU_COMERCIAL = 'menu_comercial',

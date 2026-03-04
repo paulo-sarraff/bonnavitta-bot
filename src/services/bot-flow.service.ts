@@ -1,6 +1,6 @@
 import logger from '../utils/logger.js';
 import { EstadoBot, MensagemBotResponse, ContextoDados } from '../models/schemas.js';
-import { formatarNumero, formatarData, getPreviousWeekRange, getCurrentWeekRange, hojeManaus, toDateStringManaus } from '../utils/formatter.js';
+import { formatarNumero, formatarData, getPreviousWeekRange, getCurrentWeekRange, hojeManaus, toDateStringManaus, buildDateString, ultimoDiaMes } from '../utils/formatter.js';
 
 // ============================================
 // Supervisores fixos do sistema (ordem exibida no menu)
@@ -34,6 +34,7 @@ class BotFlowService {
         resposta: `🏪 ${nomeUsuario}, o que deseja consultar?\n`,
         opcoes: [
           { id: '1', texto: 'Menu Comercial', emoji: '📊' },
+          { id: '2', texto: 'Menu Financeiro', emoji: '💰' },
           { id: '0', texto: 'Sair', emoji: '👋' },
         ],
         proximoEstado: EstadoBot.MENU_PRINCIPAL,
@@ -76,6 +77,11 @@ class BotFlowService {
         { id: '2', texto: 'Totalizador de Vendas por Vendedor', emoji: '👥' },
         { id: '3', texto: 'Vendas por Dia', emoji: '📅' },
         { id: '4', texto: 'Totalizador por Fabricante', emoji: '🏭' },
+        { id: '5', texto: 'Em breve...', emoji: '🔒' },
+        { id: '6', texto: 'Em breve...', emoji: '🔒' },
+        { id: '7', texto: 'Em breve...', emoji: '🔒' },
+        { id: '8', texto: 'Em breve...', emoji: '🔒' },
+        { id: '9', texto: 'Em breve...', emoji: '🔒' },
         { id: '0', texto: 'Sair', emoji: '👋' },
       ],
       proximoEstado: EstadoBot.MENU_COMERCIAL,
@@ -108,11 +114,11 @@ class BotFlowService {
     return {
       resposta: `📊 *Vendas por Dia — Tipo de Resumo*\n\nEscolha o agrupamento:\n`,
       opcoes: [
-        { id: 'A', texto: 'Semana Atual', emoji: '📅' },
-        { id: 'B', texto: 'Semana Anterior', emoji: '⏪' },
-        { id: 'C', texto: 'Mês Atual', emoji: '🗓️' },
-        { id: 'D', texto: 'Ano Atual (por semana)', emoji: '📆' },
-        { id: 'E', texto: 'Ano Atual (por mês)', emoji: '📊' },
+        { id: '1', texto: 'Semana Atual', emoji: '📅' },
+        { id: '2', texto: 'Semana Anterior', emoji: '⏪' },
+        { id: '3', texto: 'Mês Atual', emoji: '🗓️' },
+        { id: '4', texto: 'Ano Atual (por semana)', emoji: '📆' },
+        { id: '5', texto: 'Ano Atual (por mês)', emoji: '📊' },
         { id: '0', texto: 'Voltar', emoji: '🔙' },
       ],
       proximoEstado: EstadoBot.AGUARDANDO_TIPO_RESUMO_DIA,
@@ -173,6 +179,47 @@ class BotFlowService {
         { id: '2', texto: 'Não — voltar ao menu', emoji: '🔙' },
       ],
       proximoEstado: EstadoBot.EXIBINDO_RESULTADO_DIA,
+    };
+  }
+
+  /**
+   * Pergunta pós-detalhe de fabricante: "Deseja analisar outro fabricante?"
+   */
+  getPerguntaOutroFabricante(): MensagemBotResponse {
+    return {
+      resposta: `🔄 Deseja analisar outro fabricante?`,
+      opcoes: [
+        { id: '1', texto: 'Sim', emoji: '✅' },
+        { id: '2', texto: 'Não — voltar ao menu', emoji: '🔙' },
+      ],
+      proximoEstado: EstadoBot.EXIBINDO_DETALHE_FABRICANTE,
+    };
+  }
+
+  /**
+   * Reexibe a lista de fabricantes carregada no contexto e pede escolha.
+   */
+  montarPerguntaFabricante(contexto: ContextoDados): MensagemBotResponse {
+    const fabricantes: any[] = contexto.fabricantesCarregados || [];
+
+    let texto = `🏭 *Totalizador de Vendas por Fabricante*\n\n`;
+
+    if (fabricantes.length > 0) {
+      fabricantes.forEach((f: any, idx: number) => {
+        const nome = (f.NomeFabricante ?? '').trim();
+        texto += `${idx + 1} - ${nome} — R$ ${formatarNumero(f.TotalVendas)}\n`;
+      });
+      const total = fabricantes.reduce((s: number, f: any) => s + f.TotalVendas, 0);
+      texto += `\n💰 *TOTAL GERAL: R$ ${formatarNumero(total)}*`;
+    } else {
+      texto += '_Nenhum fabricante carregado._\n';
+    }
+
+    texto += `\n\nDeseja análise detalhada de algum fabricante?\n*Digite o número* ou *0* para voltar ao menu:`;
+
+    return {
+      resposta: texto,
+      proximoEstado: EstadoBot.EXIBINDO_LISTA_FABRICANTE,
     };
   }
 
@@ -255,6 +302,43 @@ class BotFlowService {
         // ── Item 4: Fabricante ────────────────────────────────────────────────
         case EstadoBot.AGUARDANDO_PERIODO_FABRICANTE:
           return this.processarPeriodo(opcaoSelecionada, contexto, roles, nomeUsuario, 'fabricante');
+
+        case EstadoBot.EXIBINDO_LISTA_FABRICANTE:
+          if (opcaoSelecionada === '0') {
+            return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
+          }
+          // Valida se é um número dentro da lista carregada
+          const fabricantes: any[] = contexto.fabricantesCarregados || [];
+          const idxFab = parseInt(opcaoSelecionada, 10) - 1;
+          if (isNaN(idxFab) || idxFab < 0 || idxFab >= fabricantes.length) {
+            return {
+              proximoEstado: EstadoBot.EXIBINDO_LISTA_FABRICANTE,
+              contextoAtualizado: contexto,
+              resposta: this.montarPerguntaFabricante(contexto),
+            };
+          }
+          return {
+            proximoEstado: EstadoBot.PROCESSANDO,
+            contextoAtualizado: {
+              ...contexto,
+              subFluxo: 'detalhe_fabricante',
+              nomeFabricante: fabricantes[idxFab].NomeFabricante,
+            },
+            resposta: {
+              resposta: `⏳ *Processando...* Buscando análise de ${fabricantes[idxFab].NomeFabricante}.`,
+              proximoEstado: EstadoBot.PROCESSANDO,
+            },
+          };
+
+        case EstadoBot.EXIBINDO_DETALHE_FABRICANTE:
+          if (opcaoSelecionada === '1') {
+            return {
+              proximoEstado: EstadoBot.EXIBINDO_LISTA_FABRICANTE,
+              contextoAtualizado: contexto,
+              resposta: this.montarPerguntaFabricante(contexto),
+            };
+          }
+          return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
 
         default:
           return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
@@ -397,38 +481,46 @@ class BotFlowService {
     }
 
     const hoje = hojeManaus();
-    let dataInicio: Date;
-    let dataFim: Date = new Date(hoje);
+    const ano = hoje.getFullYear();
+    const mes = hoje.getMonth() + 1; // 1-12
+    let dataInicio: string;
+    let dataFim: string;
 
     switch (opcao) {
       case '1': // Hoje
-        dataInicio = new Date(hoje);
+        dataInicio = toDateStringManaus(hoje);
+        dataFim = toDateStringManaus(hoje);
         break;
       case '2': // Ontem
-        dataInicio = new Date(hoje);
-        dataInicio.setDate(hoje.getDate() - 1);
-        dataFim = new Date(dataInicio);
+        const ontem = new Date(hoje);
+        ontem.setDate(hoje.getDate() - 1);
+        dataInicio = toDateStringManaus(ontem);
+        dataFim = toDateStringManaus(ontem);
         break;
       case '3': // Última semana (Seg-Dom)
-        dataInicio = this.getInicioSemanaAnterior();
-        dataFim = this.getFimSemanaAnterior();
+        dataInicio = toDateStringManaus(this.getInicioSemanaAnterior());
+        dataFim = toDateStringManaus(this.getFimSemanaAnterior());
         break;
-      case '4': // Este mês
-        dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-        dataFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+      case '4': // Este mês — buildDateString evita bug de timezone
+        dataInicio = buildDateString(ano, mes, 1);
+        dataFim = buildDateString(ano, mes, ultimoDiaMes(ano, mes));
         break;
-      case '5': // Mês anterior
-        dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
-        dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+      case '5': { // Mês anterior
+        const mesPrev = mes === 1 ? 12 : mes - 1;
+        const anoPrev = mes === 1 ? ano - 1 : ano;
+        dataInicio = buildDateString(anoPrev, mesPrev, 1);
+        dataFim = buildDateString(anoPrev, mesPrev, ultimoDiaMes(anoPrev, mesPrev));
         break;
+      }
       default:
-        dataInicio = new Date(hoje);
+        dataInicio = toDateStringManaus(hoje);
+        dataFim = toDateStringManaus(hoje);
     }
 
     const novoContexto = {
       ...contexto,
-      dataInicio: toDateStringManaus(dataInicio),
-      dataFim: toDateStringManaus(dataFim),
+      dataInicio,
+      dataFim,
     };
 
     if (fluxo === 'supervisor') {
@@ -559,8 +651,7 @@ class BotFlowService {
       return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
     }
 
-    const opcaoUpper = opcao.toUpperCase();
-    if (!['A', 'B', 'C', 'D', 'E'].includes(opcaoUpper)) {
+    if (!['1', '2', '3', '4', '5'].includes(opcao)) {
       return {
         proximoEstado: EstadoBot.AGUARDANDO_TIPO_RESUMO_DIA,
         contextoAtualizado: contexto,
@@ -569,46 +660,49 @@ class BotFlowService {
     }
 
     const hoje = hojeManaus();
-    let dataInicio: Date;
-    let dataFim: Date = new Date(hoje);
+    const ano = hoje.getFullYear();
+    const mes = hoje.getMonth() + 1; // 1-12
+    let dataInicio: string;
+    let dataFim: string;
     let agrupamento: string;
 
-    switch (opcaoUpper) {
-      case 'A': // Semana Atual (Seg-Dom desta semana)
-        dataInicio = this.getInicioSemanaAtual();
-        dataFim = new Date(hoje);
+    switch (opcao) {
+      case '1': // Semana Atual (Seg-Dom desta semana)
+        dataInicio = toDateStringManaus(this.getInicioSemanaAtual());
+        dataFim = toDateStringManaus(hoje);
         agrupamento = 'semana_atual';
         break;
-      case 'B': // Semana Anterior (Seg-Dom da semana passada)
-        dataInicio = this.getInicioSemanaAnterior();
-        dataFim = this.getFimSemanaAnterior();
+      case '2': // Semana Anterior (Seg-Dom da semana passada)
+        dataInicio = toDateStringManaus(this.getInicioSemanaAnterior());
+        dataFim = toDateStringManaus(this.getFimSemanaAnterior());
         agrupamento = 'semana_anterior';
         break;
-      case 'C': // Mês Atual
-        dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-        dataFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+      case '3': // Mês Atual — buildDateString evita bug de timezone
+        dataInicio = buildDateString(ano, mes, 1);
+        dataFim = buildDateString(ano, mes, ultimoDiaMes(ano, mes));
         agrupamento = 'mes_atual';
         break;
-      case 'D': // Ano Atual por semana
-        dataInicio = new Date(hoje.getFullYear(), 0, 1);
-        dataFim = new Date(hoje.getFullYear(), 11, 31);
+      case '4': // Ano Atual por semana
+        dataInicio = buildDateString(ano, 1, 1);
+        dataFim = buildDateString(ano, 12, 31);
         agrupamento = 'ano_semanas';
         break;
-      case 'E': // Ano Atual por mês
-        dataInicio = new Date(hoje.getFullYear(), 0, 1);
-        dataFim = new Date(hoje.getFullYear(), 11, 31);
+      case '5': // Ano Atual por mês
+        dataInicio = buildDateString(ano, 1, 1);
+        dataFim = buildDateString(ano, 12, 31);
         agrupamento = 'ano_meses';
         break;
       default:
-        dataInicio = new Date(hoje);
+        dataInicio = toDateStringManaus(hoje);
+        dataFim = toDateStringManaus(hoje);
         agrupamento = 'dia';
     }
 
     const novoContexto = {
       ...contexto,
-      dataInicio: toDateStringManaus(dataInicio),
-      dataFim: toDateStringManaus(dataFim),
-      tipoResumoDia: opcaoUpper,
+      dataInicio,
+      dataFim,
+      tipoResumoDia: opcao,
       agrupamentoDia: agrupamento,
     };
 
