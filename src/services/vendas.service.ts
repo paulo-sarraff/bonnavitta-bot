@@ -389,6 +389,35 @@ class VendasService {
   }
 
   /**
+   * Obtém todos os fabricantes com venda de um vendedor específico no período.
+   * Usa sp_GetVendasPorFabricante filtrada pela view via SetorClientes.
+   * ⚠️ Solução de contorno — idealmente criar sp_GetFabricantesPorVendedor no banco.
+   */
+  async getFabricantesDoVendedor(
+    dataInicio: string,
+    dataFim: string,
+    setorClientes: number
+  ): Promise<{ NomeFabricante: string; TotalVendas: number; QuantidadePedidos: number }[]> {
+    try {
+      const db = await getDatabase();
+      const request = new sql.Request(db);
+
+      request.input('DataInicio', sql.Date, dataInicio);
+      request.input('DataFim', sql.Date, dataFim);
+      request.input('SetorClientes', sql.Int, setorClientes);
+
+      const result = await request.execute('sp_GetFabricantesPorVendedor');
+
+      logger.info(`Fabricantes do vendedor ${setorClientes}: ${result.recordset.length} registros`);
+      return result.recordset;
+    } catch (error) {
+      logger.error('Erro ao obter fabricantes do vendedor:', error);
+      // Retorna vazio em vez de lançar — o detalhe do vendedor ainda deve ser exibido
+      return [];
+    }
+  }
+
+  /**
    * Obtém detalhes de vendas por fabricante (produtos)
    */
   async getDetalhesVendasPorFabricante(
@@ -519,7 +548,7 @@ class VendasService {
       return 'Nenhum dado encontrado para o período solicitado.';
     }
 
-    let resposta = `👥 *Totalizador de Vendas por Equipe*\n\n`;
+    let resposta = `👥 *Vendas por Equipe*\n\n`;
 
     vendas.forEach((venda) => {
       resposta += `*${venda.NomeEquipe}*\n`;
@@ -542,7 +571,7 @@ class VendasService {
       return 'Nenhum dado encontrado para o período solicitado.';
     }
 
-    let resposta = `👥 *Totalizador de Vendas por Equipe*\n\n`;
+    let resposta = `👥 *Vendas por Equipe*\n\n`;
 
     vendas.forEach((venda) => {
       resposta += `*${venda.EquipeNome}*\n`;
@@ -565,7 +594,7 @@ class VendasService {
       return 'Nenhum dado encontrado para o período solicitado.';
     }
 
-    let resposta = `📊 *Totalizador de Vendas por Supervisor*\n\n`;
+    let resposta = `📊 *Vendas por Supervisor*\n\n`;
 
     vendas.forEach((venda) => {
       resposta += `*${venda.NomeSetor}*\n`;
@@ -589,7 +618,7 @@ class VendasService {
       return 'Nenhum dado encontrado para o período solicitado.';
     }
 
-    let resposta = `👥 *Totalizador de Vendas por Vendedor*\n\n`;
+    let resposta = `👥 *Vendas por Vendedor*\n\n`;
 
     vendas.forEach((venda) => {
       resposta += `${venda.SetorClientes} - *${venda.NomeVendedor}* - Valor R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
@@ -682,7 +711,7 @@ class VendasService {
       return 'Nenhum dado encontrado para o período solicitado.';
     }
 
-    let resposta = `🏭 *Totalizador de Vendas por Fabricante*\n\n`;
+    let resposta = `🏭 * Vendas por Fabricante*\n\n`;
 
     vendas.forEach((venda, index) => {
       resposta += `${index + 1} - ${venda.NomeFabricante} - R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;

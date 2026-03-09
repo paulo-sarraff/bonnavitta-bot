@@ -1,6 +1,10 @@
 import logger from '../utils/logger.js';
 import { EstadoBot, MensagemBotResponse, ContextoDados } from '../models/schemas.js';
-import { formatarNumero, formatarData, getPreviousWeekRange, getCurrentWeekRange, hojeManaus, toDateStringManaus, buildDateString, ultimoDiaMes } from '../utils/formatter.js';
+import {
+  formatarNumero,
+  hojeStr, buildDateString, addDays, ultimoDiaMes,
+  semanaAtualStr, semanaAnteriorStr,
+} from '../utils/formatter.js';
 
 // ============================================
 // Supervisores fixos do sistema (ordem exibida no menu)
@@ -13,15 +17,23 @@ export const SUPERVISORES = [
   { id: '5', nome: 'TELEMARKETING' },
 ];
 
+// Opções de período compartilhadas por itens 1, 2 e 4
+const OPCOES_PERIODO = [
+  { id: '1', texto: 'Hoje',          emoji: '📍' },
+  { id: '2', texto: 'Ontem',         emoji: '⏮️' },
+  { id: '3', texto: 'Semana atual',  emoji: '📆' },
+  { id: '4', texto: 'Mês atual',     emoji: '📅' },
+  { id: '5', texto: 'Mês anterior',  emoji: '⏪' },
+  { id: '6', texto: 'Ano atual',     emoji: '📊' },
+  { id: '0', texto: 'Voltar',        emoji: '🔙' },
+];
+
 class BotFlowService {
 
   // ============================================================
   // MENUS DE EXIBIÇÃO
   // ============================================================
 
-  /**
-   * Menu principal — diferente por role
-   */
   getMenuPrincipal(roles: string[] = [], nomeUsuario: string): MensagemBotResponse {
     logger.info(`Gerando menu principal para roles: ${roles.join(', ')}`);
 
@@ -31,7 +43,7 @@ class BotFlowService {
 
     if (isAdminOrDiretoria) {
       return {
-        resposta: `🏪 ${nomeUsuario}, o que deseja consultar?\n`,
+        resposta: `🏪 O que deseja consultar?\n`,
         opcoes: [
           { id: '1', texto: 'Menu Comercial', emoji: '📊' },
           { id: '0', texto: 'Sair', emoji: '👋' },
@@ -64,79 +76,59 @@ class BotFlowService {
     };
   }
 
-  /**
-   * Menu Comercial com 9 opções (1-4 funcionais, 5-9 placeholders, 0 sair)
-   */
   getMenuComercial(nomeUsuario: string = ''): MensagemBotResponse {
     const saudacao = nomeUsuario ? `🏪 *${nomeUsuario}* — Menu Comercial\n\n` : `🏪 *Menu Comercial*\n\n`;
     return {
       resposta: `${saudacao}O que deseja consultar?\n`,
       opcoes: [
-        { id: '1', texto: 'Totalizador de Vendas por Supervisor', emoji: '👔' },
-        { id: '2', texto: 'Totalizador de Vendas por Vendedor', emoji: '👥' },
-        { id: '3', texto: 'Vendas por Dia', emoji: '📅' },
-        { id: '4', texto: 'Totalizador por Fabricante', emoji: '🏭' },
-        { id: '0', texto: 'Sair', emoji: '👋' },
+        { id: '1', texto: 'Vendas por Supervisor',  emoji: '👔' },
+        { id: '2', texto: 'Vendas por Vendedor',    emoji: '👥' },
+        { id: '3', texto: 'Vendas por Dia',         emoji: '📅' },
+        { id: '4', texto: 'Vendas por Fabricante',  emoji: '🏭' },
+        { id: '0', texto: 'Sair',                   emoji: '👋' },
       ],
       proximoEstado: EstadoBot.MENU_COMERCIAL,
     };
   }
 
-  /**
-   * Menu de seleção de período (Hoje, Ontem, Últimos 7 dias, Este mês, Mês anterior)
-   */
   getMenuPeriodo(): MensagemBotResponse {
     return {
       resposta: `📅 *Qual período deseja consultar?*\n`,
-      opcoes: [
-        { id: '1', texto: 'Hoje', emoji: '📍' },
-        { id: '2', texto: 'Ontem', emoji: '⏮️' },
-        { id: '3', texto: 'Última semana (Seg - Dom)', emoji: '📆' },
-        { id: '4', texto: 'Este mês', emoji: '📅' },
-        { id: '5', texto: 'Mês anterior', emoji: '⏪' },
-        { id: '0', texto: 'Voltar', emoji: '🔙' },
-      ],
+      opcoes: OPCOES_PERIODO,
       proximoEstado: EstadoBot.AGUARDANDO_DATA,
     };
   }
 
   /**
-   * Menu de tipo de resumo para Vendas por Dia (opções A-E)
-   * Cada opção já carrega implicitamente o período — não é necessário tela de período.
+   * Item 3 — Vendas por Dia: opções descrevem o agrupamento
    */
   getMenuTipoResumoDia(): MensagemBotResponse {
     return {
       resposta: `📊 *Vendas por Dia — Tipo de Resumo*\n\nEscolha o agrupamento:\n`,
       opcoes: [
-        { id: '1', texto: 'Semana Atual', emoji: '📅' },
-        { id: '2', texto: 'Semana Anterior', emoji: '⏪' },
-        { id: '3', texto: 'Mês Atual', emoji: '🗓️' },
-        { id: '4', texto: 'Ano Atual (por semana)', emoji: '📆' },
-        { id: '5', texto: 'Ano Atual (por mês)', emoji: '📊' },
-        { id: '0', texto: 'Voltar', emoji: '🔙' },
+        { id: '1', texto: 'Semana atual (em dias)',   emoji: '📅' },
+        { id: '2', texto: 'Mês atual (em dias)',      emoji: '🗓️' },
+        { id: '3', texto: 'Mês atual (em semanas)',   emoji: '📆' },
+        { id: '4', texto: 'Ano atual (em semanas)',   emoji: '📊' },
+        { id: '5', texto: 'Ano atual (em meses)',     emoji: '📈' },
+        { id: '0', texto: 'Voltar',                   emoji: '🔙' },
       ],
       proximoEstado: EstadoBot.AGUARDANDO_TIPO_RESUMO_DIA,
     };
   }
 
-  /**
-   * Menu de formato de exibição (Extenso ou Gráfico)
-   */
   getMenuFormatoDia(): MensagemBotResponse {
     return {
       resposta: `🖥️ *Como deseja visualizar o resultado?*\n`,
       opcoes: [
         { id: '1', texto: 'Extenso (texto)', emoji: '📝' },
-        { id: '2', texto: 'Gráfico', emoji: '📈' },
-        { id: '0', texto: 'Voltar', emoji: '🔙' },
+        { id: '2', texto: 'Gráfico',         emoji: '📈' },
+        { id: '0', texto: 'Voltar',          emoji: '🔙' },
       ],
       proximoEstado: EstadoBot.AGUARDANDO_FORMATO_DIA,
     };
   }
 
-  /**
-   * Pergunta pós-resultado de supervisor: "Deseja analisar outro supervisor?"
-   */
   getPerguntaOutroSupervisor(): MensagemBotResponse {
     return {
       resposta: `🔄 Deseja analisar outro supervisor?`,
@@ -148,9 +140,6 @@ class BotFlowService {
     };
   }
 
-  /**
-   * Pergunta pós-resultado de vendedor: "Deseja analisar outro vendedor?"
-   */
   getPerguntaOutroVendedor(): MensagemBotResponse {
     return {
       resposta: `🔄 Deseja analisar outro vendedor?`,
@@ -162,9 +151,6 @@ class BotFlowService {
     };
   }
 
-  /**
-   * Pergunta pós-resultado de vendas por dia: "Deseja consultar outro período?"
-   */
   getPerguntaOutroPeriodoDia(): MensagemBotResponse {
     return {
       resposta: `🔄 Deseja consultar outro período?`,
@@ -176,9 +162,6 @@ class BotFlowService {
     };
   }
 
-  /**
-   * Pergunta pós-detalhe de fabricante: "Deseja analisar outro fabricante?"
-   */
   getPerguntaOutroFabricante(): MensagemBotResponse {
     return {
       resposta: `🔄 Deseja analisar outro fabricante?`,
@@ -190,18 +173,13 @@ class BotFlowService {
     };
   }
 
-  /**
-   * Reexibe a lista de fabricantes carregada no contexto e pede escolha.
-   */
   montarPerguntaFabricante(contexto: ContextoDados): MensagemBotResponse {
     const fabricantes: any[] = contexto.fabricantesCarregados || [];
-
-    let texto = `🏭 *Totalizador de Vendas por Fabricante*\n\n`;
+    let texto = `🏭 *Vendas por Fabricante*\n\n`;
 
     if (fabricantes.length > 0) {
       fabricantes.forEach((f: any, idx: number) => {
-        const nome = (f.NomeFabricante ?? '').trim();
-        texto += `${idx + 1} - ${nome} — R$ ${formatarNumero(f.TotalVendas)}\n`;
+        texto += `${idx + 1} - ${(f.NomeFabricante ?? '').trim()} — R$ ${formatarNumero(f.TotalVendas)}\n`;
       });
       const total = fabricantes.reduce((s: number, f: any) => s + f.TotalVendas, 0);
       texto += `\n💰 *TOTAL GERAL: R$ ${formatarNumero(total)}*`;
@@ -210,11 +188,7 @@ class BotFlowService {
     }
 
     texto += `\n\nDeseja análise detalhada de algum fabricante?\n*Digite o número* ou *0* para voltar ao menu:`;
-
-    return {
-      resposta: texto,
-      proximoEstado: EstadoBot.EXIBINDO_LISTA_FABRICANTE,
-    };
+    return { resposta: texto, proximoEstado: EstadoBot.EXIBINDO_LISTA_FABRICANTE };
   }
 
   // ============================================================
@@ -246,16 +220,13 @@ class BotFlowService {
           return this.processarEscolhaSupervisor(opcaoSelecionada, contexto, roles, nomeUsuario);
 
         case EstadoBot.EXIBINDO_ANALISE_SUPERVISOR:
-          // Pergunta: "Deseja analisar outro supervisor?"
           if (opcaoSelecionada === '1') {
-            // Sim → volta para escolha de supervisor (lista já está no contexto)
             return {
               proximoEstado: EstadoBot.AGUARDANDO_ESCOLHA_SUPERVISOR,
               contextoAtualizado: contexto,
               resposta: this.montarPerguntaSupervisor(contexto),
             };
           }
-          // Não → menu principal
           return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
 
         // ── Item 2: Vendedor ──────────────────────────────────────────────────
@@ -284,7 +255,6 @@ class BotFlowService {
 
         case EstadoBot.EXIBINDO_RESULTADO_DIA:
           if (opcaoSelecionada === '1') {
-            // Sim → volta para escolha de tipo de resumo
             return {
               proximoEstado: EstadoBot.AGUARDANDO_TIPO_RESUMO_DIA,
               contextoAtualizado: contexto,
@@ -297,11 +267,10 @@ class BotFlowService {
         case EstadoBot.AGUARDANDO_PERIODO_FABRICANTE:
           return this.processarPeriodo(opcaoSelecionada, contexto, roles, nomeUsuario, 'fabricante');
 
-        case EstadoBot.EXIBINDO_LISTA_FABRICANTE:
+        case EstadoBot.EXIBINDO_LISTA_FABRICANTE: {
           if (opcaoSelecionada === '0') {
             return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
           }
-          // Valida se é um número dentro da lista carregada
           const fabricantes: any[] = contexto.fabricantesCarregados || [];
           const idxFab = parseInt(opcaoSelecionada, 10) - 1;
           if (isNaN(idxFab) || idxFab < 0 || idxFab >= fabricantes.length) {
@@ -323,6 +292,7 @@ class BotFlowService {
               proximoEstado: EstadoBot.PROCESSANDO,
             },
           };
+        }
 
         case EstadoBot.EXIBINDO_DETALHE_FABRICANTE:
           if (opcaoSelecionada === '1') {
@@ -354,25 +324,12 @@ class BotFlowService {
   // PROCESSADORES PRIVADOS
   // ============================================================
 
-  /**
-   * Menu principal — só para admin/diretoria (hub entre Comercial e Financeiro)
-   * Usuários com role 'comercial' já entram direto em MENU_COMERCIAL após login.
-   */
   private processarMenuPrincipal(
-    opcao: string,
-    contexto: ContextoDados,
-    roles: string[],
-    nomeUsuario: string
+    opcao: string, contexto: ContextoDados, roles: string[], nomeUsuario: string
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
+    if (opcao === '0') return this.retornarLogout();
 
-    if (opcao === '0') {
-      return this.retornarLogout();
-    }
-
-    const isAdminOrDiretoria = roles.includes('admin') || roles.includes('diretoria');
-
-    // Admin/Diretoria: opção 1 = Menu Comercial
-    if (isAdminOrDiretoria && opcao === '1') {
+    if ((roles.includes('admin') || roles.includes('diretoria')) && opcao === '1') {
       return {
         proximoEstado: EstadoBot.MENU_COMERCIAL,
         contextoAtualizado: {},
@@ -380,7 +337,6 @@ class BotFlowService {
       };
     }
 
-    // Opção inválida → reexibe menu principal
     return {
       proximoEstado: EstadoBot.MENU_PRINCIPAL,
       contextoAtualizado: contexto,
@@ -388,34 +344,11 @@ class BotFlowService {
     };
   }
 
-  /**
-   * Menu Comercial — roteia para o sub-fluxo correto (itens 1-4, placeholders 5-9, sair 0)
-   */
   private processarMenuComercial(
-    opcao: string,
-    contexto: ContextoDados,
-    roles: string[],
-    nomeUsuario: string
+    opcao: string, contexto: ContextoDados, roles: string[], nomeUsuario: string
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
+    if (opcao === '0') return this.retornarLogout();
 
-    if (opcao === '0') {
-      return this.retornarLogout();
-    }
-
-    // Placeholders 5-9
-    if (['5', '6', '7', '8', '9'].includes(opcao)) {
-      return {
-        proximoEstado: EstadoBot.MENU_COMERCIAL,
-        contextoAtualizado: contexto,
-        resposta: {
-          resposta: `🔒 *Esta funcionalidade será implementada em breve!*\n\nRetornando ao Menu Comercial...`,
-          opcoes: this.getMenuComercial(nomeUsuario).opcoes,
-          proximoEstado: EstadoBot.MENU_COMERCIAL,
-        },
-      };
-    }
-
-    // Opção inválida → reexibe menu comercial
     if (!['1', '2', '3', '4'].includes(opcao)) {
       return {
         proximoEstado: EstadoBot.MENU_COMERCIAL,
@@ -426,41 +359,16 @@ class BotFlowService {
 
     const novoContexto = { ...contexto, opcaoMenuComercial: opcao };
 
-    if (opcao === '1') {
-      return {
-        proximoEstado: EstadoBot.AGUARDANDO_PERIODO_SUPERVISOR,
-        contextoAtualizado: novoContexto,
-        resposta: this.getMenuPeriodo(),
-      };
-    }
-
-    if (opcao === '2') {
-      return {
-        proximoEstado: EstadoBot.AGUARDANDO_PERIODO_VENDEDOR,
-        contextoAtualizado: novoContexto,
-        resposta: this.getMenuPeriodo(),
-      };
-    }
-
-    if (opcao === '3') {
-      return {
-        proximoEstado: EstadoBot.AGUARDANDO_TIPO_RESUMO_DIA,
-        contextoAtualizado: novoContexto,
-        resposta: this.getMenuTipoResumoDia(),
-      };
-    }
-
+    if (opcao === '1') return { proximoEstado: EstadoBot.AGUARDANDO_PERIODO_SUPERVISOR, contextoAtualizado: novoContexto, resposta: this.getMenuPeriodo() };
+    if (opcao === '2') return { proximoEstado: EstadoBot.AGUARDANDO_PERIODO_VENDEDOR,   contextoAtualizado: novoContexto, resposta: this.getMenuPeriodo() };
+    if (opcao === '3') return { proximoEstado: EstadoBot.AGUARDANDO_TIPO_RESUMO_DIA,    contextoAtualizado: novoContexto, resposta: this.getMenuTipoResumoDia() };
     // opcao === '4'
-    return {
-      proximoEstado: EstadoBot.AGUARDANDO_PERIODO_FABRICANTE,
-      contextoAtualizado: novoContexto,
-      resposta: this.getMenuPeriodo(),
-    };
+    return { proximoEstado: EstadoBot.AGUARDANDO_PERIODO_FABRICANTE, contextoAtualizado: novoContexto, resposta: this.getMenuPeriodo() };
   }
 
   /**
-   * Processa seleção de período e seta dataInicio/dataFim no contexto.
-   * Redireciona conforme o fluxo (supervisor | vendedor | fabricante).
+   * Calcula dataInicio/dataFim a partir da opção de período (1-6).
+   * Usa APENAS strings YYYY-MM-DD — zero dependência do timezone do servidor.
    */
   private processarPeriodo(
     opcao: string,
@@ -470,282 +378,176 @@ class BotFlowService {
     fluxo: 'supervisor' | 'vendedor' | 'fabricante'
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
 
-    if (opcao === '0') {
-      return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
-    }
+    if (opcao === '0') return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
 
-    const hoje = hojeManaus();
-    const ano = hoje.getFullYear();
-    const mes = hoje.getMonth() + 1; // 1-12
+    const hoje = hojeStr(); // YYYY-MM-DD em Manaus, sem timezone do servidor
+    const [ano, mesN] = hoje.split('-').map(Number);
+
     let dataInicio: string;
     let dataFim: string;
 
     switch (opcao) {
       case '1': // Hoje
-        dataInicio = toDateStringManaus(hoje);
-        dataFim = toDateStringManaus(hoje);
+        dataInicio = hoje;
+        dataFim = hoje;
         break;
       case '2': // Ontem
-        const ontem = new Date(hoje);
-        ontem.setDate(hoje.getDate() - 1);
-        dataInicio = toDateStringManaus(ontem);
-        dataFim = toDateStringManaus(ontem);
+        dataInicio = addDays(hoje, -1);
+        dataFim = dataInicio;
         break;
-      case '3': // Última semana (Seg-Dom)
-        dataInicio = toDateStringManaus(this.getInicioSemanaAnterior());
-        dataFim = toDateStringManaus(this.getFimSemanaAnterior());
+      case '3': // Semana atual (Seg-Dom)
+        ({ inicio: dataInicio, fim: dataFim } = semanaAtualStr());
         break;
-      case '4': // Este mês — buildDateString evita bug de timezone
-        dataInicio = buildDateString(ano, mes, 1);
-        dataFim = buildDateString(ano, mes, ultimoDiaMes(ano, mes));
+      case '4': // Mês atual
+        dataInicio = buildDateString(ano, mesN, 1);
+        dataFim = buildDateString(ano, mesN, ultimoDiaMes(ano, mesN));
         break;
       case '5': { // Mês anterior
-        const mesPrev = mes === 1 ? 12 : mes - 1;
-        const anoPrev = mes === 1 ? ano - 1 : ano;
+        const mesPrev = mesN === 1 ? 12 : mesN - 1;
+        const anoPrev = mesN === 1 ? ano - 1 : ano;
         dataInicio = buildDateString(anoPrev, mesPrev, 1);
         dataFim = buildDateString(anoPrev, mesPrev, ultimoDiaMes(anoPrev, mesPrev));
         break;
       }
+      case '6': // Ano atual
+        dataInicio = buildDateString(ano, 1, 1);
+        dataFim = buildDateString(ano, 12, 31);
+        break;
       default:
-        dataInicio = toDateStringManaus(hoje);
-        dataFim = toDateStringManaus(hoje);
+        dataInicio = hoje;
+        dataFim = hoje;
     }
 
-    const novoContexto = {
-      ...contexto,
-      dataInicio,
-      dataFim,
-    };
+    const novoContexto = { ...contexto, dataInicio, dataFim };
 
     if (fluxo === 'supervisor') {
       return {
         proximoEstado: EstadoBot.PROCESSANDO,
         contextoAtualizado: { ...novoContexto, subFluxo: 'carregar_supervisores' },
-        resposta: {
-          resposta: '⏳ *Processando...* Buscando dados de supervisores.',
-          proximoEstado: EstadoBot.PROCESSANDO,
-        },
+        resposta: { resposta: '⏳ *Processando...* Buscando dados de supervisores.', proximoEstado: EstadoBot.PROCESSANDO },
       };
     }
-
     if (fluxo === 'vendedor') {
       return {
         proximoEstado: EstadoBot.PROCESSANDO,
         contextoAtualizado: { ...novoContexto, subFluxo: 'carregar_vendedores' },
-        resposta: {
-          resposta: '⏳ *Processando...* Buscando dados de vendedores.',
-          proximoEstado: EstadoBot.PROCESSANDO,
-        },
+        resposta: { resposta: '⏳ *Processando...* Buscando dados de vendedores.', proximoEstado: EstadoBot.PROCESSANDO },
       };
     }
-
-    if (fluxo === 'fabricante') {
-      return {
-        proximoEstado: EstadoBot.PROCESSANDO,
-        contextoAtualizado: { ...novoContexto, subFluxo: 'fabricante' },
-        resposta: {
-          resposta: '⏳ *Processando...* Buscando dados de fabricantes.',
-          proximoEstado: EstadoBot.PROCESSANDO,
-        },
-      };
-    }
-
-    return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
-  }
-
-  /**
-   * Processa a escolha de supervisor (1-5 ou 0 para voltar)
-   */
-  private processarEscolhaSupervisor(
-    opcao: string,
-    contexto: ContextoDados,
-    roles: string[],
-    nomeUsuario: string
-  ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
-
-    if (opcao === '0') {
-      return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
-    }
-
-    const supervisor = SUPERVISORES.find(s => s.id === opcao);
-    if (!supervisor) {
-      return {
-        proximoEstado: EstadoBot.AGUARDANDO_ESCOLHA_SUPERVISOR,
-        contextoAtualizado: contexto,
-        resposta: this.montarPerguntaSupervisor(contexto),
-      };
-    }
-
+    // fabricante
     return {
       proximoEstado: EstadoBot.PROCESSANDO,
-      contextoAtualizado: {
-        ...contexto,
-        subFluxo: 'analise_supervisor',
-        supervisorNome: supervisor.nome,
-      },
-      resposta: {
-        resposta: `⏳ *Processando...* Buscando análise de ${supervisor.nome}.`,
-        proximoEstado: EstadoBot.PROCESSANDO,
-      },
+      contextoAtualizado: { ...novoContexto, subFluxo: 'fabricante' },
+      resposta: { resposta: '⏳ *Processando...* Buscando dados de fabricantes.', proximoEstado: EstadoBot.PROCESSANDO },
     };
   }
 
-  /**
-   * Processa o código do vendedor digitado pelo usuário
-   */
-  private processarCodigoVendedor(
-    codigo: string,
-    contexto: ContextoDados,
-    roles: string[],
-    nomeUsuario: string
+  private processarEscolhaSupervisor(
+    opcao: string, contexto: ContextoDados, roles: string[], nomeUsuario: string
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
+    if (opcao === '0') return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
 
-    if (codigo === '0') {
-      return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
+    const supervisor = SUPERVISORES.find(s => s.id === opcao);
+    if (!supervisor) {
+      return { proximoEstado: EstadoBot.AGUARDANDO_ESCOLHA_SUPERVISOR, contextoAtualizado: contexto, resposta: this.montarPerguntaSupervisor(contexto) };
     }
+    return {
+      proximoEstado: EstadoBot.PROCESSANDO,
+      contextoAtualizado: { ...contexto, subFluxo: 'analise_supervisor', supervisorNome: supervisor.nome },
+      resposta: { resposta: `⏳ *Processando...* Buscando análise de ${supervisor.nome}.`, proximoEstado: EstadoBot.PROCESSANDO },
+    };
+  }
+
+  private processarCodigoVendedor(
+    codigo: string, contexto: ContextoDados, roles: string[], nomeUsuario: string
+  ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
+    if (codigo === '0') return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
 
     const codigoNum = parseInt(codigo.trim(), 10);
     if (isNaN(codigoNum)) {
       return {
         proximoEstado: EstadoBot.AGUARDANDO_CODIGO_VENDEDOR,
         contextoAtualizado: contexto,
-        resposta: {
-          resposta: `❌ Código inválido. Digite apenas o *número do código* do vendedor:\n(ou *0* para voltar)`,
-          proximoEstado: EstadoBot.AGUARDANDO_CODIGO_VENDEDOR,
-        },
+        resposta: { resposta: `❌ Código inválido. Digite apenas o *número do código* do vendedor:\n(ou *0* para voltar)`, proximoEstado: EstadoBot.AGUARDANDO_CODIGO_VENDEDOR },
       };
     }
-
     return {
       proximoEstado: EstadoBot.PROCESSANDO,
-      contextoAtualizado: {
-        ...contexto,
-        subFluxo: 'analise_vendedor',
-        codigoVendedor: codigoNum,
-      },
-      resposta: {
-        resposta: `⏳ *Processando...* Buscando análise do vendedor ${codigoNum}.`,
-        proximoEstado: EstadoBot.PROCESSANDO,
-      },
+      contextoAtualizado: { ...contexto, subFluxo: 'analise_vendedor', codigoVendedor: codigoNum },
+      resposta: { resposta: `⏳ *Processando...* Buscando análise do vendedor ${codigoNum}.`, proximoEstado: EstadoBot.PROCESSANDO },
     };
   }
 
   /**
-   * Processa tipo de resumo para Vendas por Dia (A-E)
-   * Define dataInicio/dataFim automaticamente com base na opção.
+   * Item 3 — define dataInicio/dataFim e agrupamento conforme opção 1-5.
+   * Usa APENAS strings — zero dependência do timezone do servidor.
    */
   private processarTipoResumoDia(
-    opcao: string,
-    contexto: ContextoDados,
-    roles: string[],
-    nomeUsuario: string
+    opcao: string, contexto: ContextoDados, roles: string[], nomeUsuario: string
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
-
-    if (opcao === '0') {
-      return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
-    }
+    if (opcao === '0') return this.irParaMenuPrincipal(contexto, roles, nomeUsuario);
 
     if (!['1', '2', '3', '4', '5'].includes(opcao)) {
-      return {
-        proximoEstado: EstadoBot.AGUARDANDO_TIPO_RESUMO_DIA,
-        contextoAtualizado: contexto,
-        resposta: this.getMenuTipoResumoDia(),
-      };
+      return { proximoEstado: EstadoBot.AGUARDANDO_TIPO_RESUMO_DIA, contextoAtualizado: contexto, resposta: this.getMenuTipoResumoDia() };
     }
 
-    const hoje = hojeManaus();
-    const ano = hoje.getFullYear();
-    const mes = hoje.getMonth() + 1; // 1-12
+    const hoje = hojeStr();
+    const [ano, mesN] = hoje.split('-').map(Number);
     let dataInicio: string;
     let dataFim: string;
     let agrupamento: string;
 
     switch (opcao) {
-      case '1': // Semana Atual (Seg-Dom desta semana)
-        dataInicio = toDateStringManaus(this.getInicioSemanaAtual());
-        dataFim = toDateStringManaus(hoje);
-        agrupamento = 'semana_atual';
+      case '1': // Semana atual em dias
+        ({ inicio: dataInicio, fim: dataFim } = semanaAtualStr());
+        agrupamento = 'semana_dias';
         break;
-      case '2': // Semana Anterior (Seg-Dom da semana passada)
-        dataInicio = toDateStringManaus(this.getInicioSemanaAnterior());
-        dataFim = toDateStringManaus(this.getFimSemanaAnterior());
-        agrupamento = 'semana_anterior';
+      case '2': // Mês atual em dias
+        dataInicio = buildDateString(ano, mesN, 1);
+        dataFim = buildDateString(ano, mesN, ultimoDiaMes(ano, mesN));
+        agrupamento = 'mes_dias';
         break;
-      case '3': // Mês Atual — buildDateString evita bug de timezone
-        dataInicio = buildDateString(ano, mes, 1);
-        dataFim = buildDateString(ano, mes, ultimoDiaMes(ano, mes));
-        agrupamento = 'mes_atual';
+      case '3': // Mês atual em semanas
+        dataInicio = buildDateString(ano, mesN, 1);
+        dataFim = buildDateString(ano, mesN, ultimoDiaMes(ano, mesN));
+        agrupamento = 'mes_semanas';
         break;
-      case '4': // Ano Atual por semana
+      case '4': // Ano atual em semanas
         dataInicio = buildDateString(ano, 1, 1);
         dataFim = buildDateString(ano, 12, 31);
         agrupamento = 'ano_semanas';
         break;
-      case '5': // Ano Atual por mês
+      case '5': // Ano atual em meses
         dataInicio = buildDateString(ano, 1, 1);
         dataFim = buildDateString(ano, 12, 31);
         agrupamento = 'ano_meses';
         break;
       default:
-        dataInicio = toDateStringManaus(hoje);
-        dataFim = toDateStringManaus(hoje);
-        agrupamento = 'dia';
+        dataInicio = hoje;
+        dataFim = hoje;
+        agrupamento = 'semana_dias';
     }
-
-    const novoContexto = {
-      ...contexto,
-      dataInicio,
-      dataFim,
-      tipoResumoDia: opcao,
-      agrupamentoDia: agrupamento,
-    };
 
     return {
       proximoEstado: EstadoBot.AGUARDANDO_FORMATO_DIA,
-      contextoAtualizado: novoContexto,
+      contextoAtualizado: { ...contexto, dataInicio, dataFim, tipoResumoDia: opcao, agrupamentoDia: agrupamento },
       resposta: this.getMenuFormatoDia(),
     };
   }
 
-  /**
-   * Processa formato de exibição (Extenso / Gráfico) e dispara processamento
-   */
   private processarFormatoDia(
-    opcao: string,
-    contexto: ContextoDados,
-    roles: string[],
-    nomeUsuario: string
+    opcao: string, contexto: ContextoDados, roles: string[], nomeUsuario: string
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
-
     if (opcao === '0') {
-      return {
-        proximoEstado: EstadoBot.AGUARDANDO_TIPO_RESUMO_DIA,
-        contextoAtualizado: contexto,
-        resposta: this.getMenuTipoResumoDia(),
-      };
+      return { proximoEstado: EstadoBot.AGUARDANDO_TIPO_RESUMO_DIA, contextoAtualizado: contexto, resposta: this.getMenuTipoResumoDia() };
     }
-
     if (!['1', '2'].includes(opcao)) {
-      return {
-        proximoEstado: EstadoBot.AGUARDANDO_FORMATO_DIA,
-        contextoAtualizado: contexto,
-        resposta: this.getMenuFormatoDia(),
-      };
+      return { proximoEstado: EstadoBot.AGUARDANDO_FORMATO_DIA, contextoAtualizado: contexto, resposta: this.getMenuFormatoDia() };
     }
-
-    const novoContexto = {
-      ...contexto,
-      subFluxo: 'vendas_por_dia',
-      formatoDia: opcao === '1' ? 'extenso' : 'grafico',
-    };
-
     return {
       proximoEstado: EstadoBot.PROCESSANDO,
-      contextoAtualizado: novoContexto,
-      resposta: {
-        resposta: '⏳ *Processando...* Buscando dados de vendas por dia.',
-        proximoEstado: EstadoBot.PROCESSANDO,
-      },
+      contextoAtualizado: { ...contexto, subFluxo: 'vendas_por_dia', formatoDia: opcao === '1' ? 'extenso' : 'grafico' },
+      resposta: { resposta: '⏳ *Processando...* Buscando dados de vendas por dia.', proximoEstado: EstadoBot.PROCESSANDO },
     };
   }
 
@@ -753,51 +555,33 @@ class BotFlowService {
   // HELPERS
   // ============================================================
 
-  /**
-   * Monta a mensagem de "qual supervisor deseja analisar?" usando a lista
-   * de supervisores carregada do banco e salva no contexto.
-   */
   montarPerguntaSupervisor(contexto: ContextoDados): MensagemBotResponse {
-    const supervisoresCarregados: any[] = contexto.supervisoresCarregados || [];
+    const carregados: any[] = contexto.supervisoresCarregados || [];
+    let texto = `📊 *Vendas por Supervisor*\n\n`;
 
-    let texto = `📊 *Totalizador de Vendas por Supervisor*\n\n`;
-
-    if (supervisoresCarregados.length > 0) {
-      // Sempre exibir na ordem fixa (Loja, Food, Varejo, Redes, Telemarketing)
-      SUPERVISORES.forEach(sup => {
-        const s = supervisoresCarregados.find((v: any) =>
-          v.NomeSetor?.toUpperCase().includes(sup.nome.toUpperCase()) ||
-          sup.nome.toUpperCase().includes(v.NomeSetor?.toUpperCase())
-        );
-        if (s) {
-          texto += `${sup.id} - ${s.NomeSetor} — R$ ${this.formatarMoedaSimples(s.TotalVendas)}\n`;
-        }
-      });
-    } else {
-      SUPERVISORES.forEach(s => {
-        texto += `${s.id} - ${s.nome}\n`;
-      });
-    }
+    SUPERVISORES.forEach(sup => {
+      const s = carregados.find((v: any) =>
+        v.NomeSetor?.toUpperCase().includes(sup.nome.toUpperCase()) ||
+        sup.nome.toUpperCase().includes(v.NomeSetor?.toUpperCase())
+      );
+      if (s) {
+        texto += `${sup.id} - ${s.NomeSetor} — R$ ${this.fmt(s.TotalVendas)}\n`;
+      } else {
+        // Supervisor sem dados no período — exibe com zero
+        texto += `${sup.id} - ${sup.nome} — R$ 0,00\n`;
+      }
+    });
 
     texto += `\nDeseja análise de algum supervisor? *Digite o número (1-${SUPERVISORES.length})* ou *0* para voltar:`;
-
-    return {
-      resposta: texto,
-      proximoEstado: EstadoBot.AGUARDANDO_ESCOLHA_SUPERVISOR,
-    };
+    return { resposta: texto, proximoEstado: EstadoBot.AGUARDANDO_ESCOLHA_SUPERVISOR };
   }
 
-  /**
-   * Monta a mensagem de "qual vendedor deseja analisar?" reexibindo a lista
-   * já carregada no contexto (vendedoresCarregados).
-   */
   montarPerguntaVendedor(contexto: ContextoDados): MensagemBotResponse {
-    const vendedoresCarregados: any[] = contexto.vendedoresCarregados || [];
+    const vendedores: any[] = contexto.vendedoresCarregados || [];
+    let texto = `👥 *Vendas por Vendedor*\n\n`;
 
-    let texto = `👥 *Totalizador de Vendas por Vendedor*\n\n`;
-
-    if (vendedoresCarregados.length > 0) {
-      vendedoresCarregados.forEach((v: any) => {
+    if (vendedores.length > 0) {
+      vendedores.forEach((v: any) => {
         const codigo = v.SetorClientes ?? '—';
         const nome = (v.NomeVendedor ?? '').trim();
         const total = v.TotalVendas ?? 0;
@@ -808,28 +592,19 @@ class BotFlowService {
     }
 
     texto += `\nDeseja análise de algum vendedor?\n*Digite o código* do vendedor ou *0* para voltar ao menu:`;
-
-    return {
-      resposta: texto,
-      proximoEstado: EstadoBot.AGUARDANDO_CODIGO_VENDEDOR,
-    };
+    return { resposta: texto, proximoEstado: EstadoBot.AGUARDANDO_CODIGO_VENDEDOR };
   }
 
   private retornarLogout(): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
     return {
       proximoEstado: EstadoBot.ENCERRADO,
       contextoAtualizado: {},
-      resposta: {
-        resposta: 'Até logo! 👋\n\nVocê foi desconectado. Digite seu CPF para fazer login novamente.',
-        proximoEstado: EstadoBot.ENCERRADO,
-      },
+      resposta: { resposta: 'Até logo! 👋\n\nVocê foi desconectado. Digite seu CPF para fazer login novamente.', proximoEstado: EstadoBot.ENCERRADO },
     };
   }
 
   private irParaMenuPrincipal(
-    contexto: ContextoDados,
-    roles: string[],
-    nomeUsuario: string
+    contexto: ContextoDados, roles: string[], nomeUsuario: string
   ): { proximoEstado: EstadoBot; contextoAtualizado: ContextoDados; resposta: MensagemBotResponse } {
     return {
       proximoEstado: EstadoBot.MENU_PRINCIPAL,
@@ -838,19 +613,7 @@ class BotFlowService {
     };
   }
 
-  private getInicioSemanaAtual(): Date {
-    return getCurrentWeekRange().start;
-  }
-
-  private getInicioSemanaAnterior(): Date {
-    return getPreviousWeekRange().start;
-  }
-
-  private getFimSemanaAnterior(): Date {
-    return getPreviousWeekRange().end;
-  }
-
-  private formatarMoedaSimples(valor: number): string {
+  private fmt(valor: number): string {
     return formatarNumero(valor);
   }
 }
