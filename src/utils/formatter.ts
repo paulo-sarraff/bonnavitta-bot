@@ -2,60 +2,37 @@
  * Formatadores de dados
  */
 
-// Fuso horário local da operação
 const TIMEZONE = 'America/Manaus'; // GMT-4 (sem horário de verão)
 
-/**
- * Retorna a data/hora atual no fuso de Manaus como objeto Date
- * cujos campos (getFullYear, getMonth, getDate, etc.) refletem
- * a hora local — não UTC.
- *
- * Estratégia: formata a data atual em Manaus via Intl e reconstrói
- * um Date a partir dessa string, evitando dependências externas.
- */
-export function hojeManaus(): Date {
-  const agora = new Date();
-  // Formata no fuso de Manaus: "2024-01-15T20:30:00"
-  const partes = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).format(agora).replace(' ', 'T');
-
-  // Reconstrói sem indicador de timezone → tratado como local pelo motor JS
-  return new Date(partes);
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// FUNÇÕES DE DATA — todas trabalham com strings YYYY-MM-DD puras.
+// NUNCA dependem do timezone do servidor Node.
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Converte uma Date para string YYYY-MM-DD no fuso de Manaus
+ * Retorna a data de hoje em Manaus como string YYYY-MM-DD.
+ * Usa Intl diretamente — zero dependência do timezone do servidor.
  */
-export function toDateStringManaus(date: Date): string {
+export function hojeStr(): string {
   return new Intl.DateTimeFormat('sv-SE', {
     timeZone: TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(date);
+  }).format(new Date());
 }
 
 /**
- * Constrói uma string YYYY-MM-DD a partir de componentes numéricos,
- * sem instanciar Date — evita bugs de timezone ao usar new Date(ano, mes, dia).
+ * Constrói YYYY-MM-DD a partir de componentes numéricos.
  */
 export function buildDateString(ano: number, mes: number, dia: number): string {
   return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
 }
 
 /**
- * Avança uma data YYYY-MM-DD em N dias, sem instanciar Date com timezone.
- * Usado para contornar o bug das SPs: WHERE Data BETWEEN @DataInicio AND @DataFim
- * compara DateTime vs DATE, excluindo o último dia (hora > 00:00:00).
- * ⚠️ TEMPORÁRIO — remover quando o script 04_fix_where_cast_date.sql for executado no banco.
+ * Soma N dias a uma string YYYY-MM-DD.
+ * Usa Date apenas para aritmética de calendário (não para formatação),
+ * então o timezone do servidor não afeta o resultado da string retornada.
  */
 export function addDays(dateStr: string, days: number): string {
   const [ano, mes, dia] = dateStr.split('-').map(Number);
@@ -64,57 +41,102 @@ export function addDays(dateStr: string, days: number): string {
 }
 
 /**
- * Retorna o último dia de um mês como número.
- * Usa o truque nativo: dia 0 do mês seguinte = último dia do mês atual.
- * Isso é seguro pois não envolve formatação de fuso.
+ * Retorna o último dia do mês como número.
  */
 export function ultimoDiaMes(ano: number, mes: number): number {
   return new Date(ano, mes, 0).getDate();
 }
 
 /**
- * Converte nome do dia da semana retornado pelo SQL Server (inglês)
- * para português. DATENAME(WEEKDAY) depende do LANGUAGE da instância.
- * @deprecated — prefira calcDiaSemana(date) que deriva o dia direto do objeto Date
+ * Retorna o dia da semana ISO (1=Seg … 7=Dom) de uma string YYYY-MM-DD.
  */
+function diaDaSemana(dateStr: string): number {
+  const [ano, mes, dia] = dateStr.split('-').map(Number);
+  const dow = new Date(ano, mes - 1, dia).getDay(); // 0=Dom … 6=Sab
+  return dow === 0 ? 7 : dow;
+}
+
+/**
+ * Retorna {inicio, fim} da semana atual (Seg-Dom) como strings YYYY-MM-DD.
+ */
+export function semanaAtualStr(): { inicio: string; fim: string } {
+  const hoje = hojeStr();
+  const dow = diaDaSemana(hoje);
+  const inicio = addDays(hoje, -(dow - 1));
+  return { inicio, fim: addDays(inicio, 6) };
+}
+
+/**
+ * Retorna {inicio, fim} da semana anterior (Seg-Dom) como strings YYYY-MM-DD.
+ */
+export function semanaAnteriorStr(): { inicio: string; fim: string } {
+  const { inicio } = semanaAtualStr();
+  return { inicio: addDays(inicio, -7), fim: addDays(inicio, -1) };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGADOS — mantidos para não quebrar imports existentes
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** @deprecated use hojeStr() */
+export function hojeManaus(): Date {
+  const s = hojeStr();
+  const [ano, mes, dia] = s.split('-').map(Number);
+  return new Date(ano, mes - 1, dia);
+}
+
+/** @deprecated use buildDateString / hojeStr diretamente */
+export function toDateStringManaus(date: Date): string {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date);
+}
+
+/** @deprecated use semanaAtualStr() */
+export function getCurrentWeekRange(): { start: Date; end: Date } {
+  const { inicio, fim } = semanaAtualStr();
+  const [a1, m1, d1] = inicio.split('-').map(Number);
+  const [a2, m2, d2] = fim.split('-').map(Number);
+  return { start: new Date(a1, m1 - 1, d1), end: new Date(a2, m2 - 1, d2) };
+}
+
+/** @deprecated use semanaAnteriorStr() */
+export function getPreviousWeekRange(): { start: Date; end: Date } {
+  const { inicio, fim } = semanaAnteriorStr();
+  const [a1, m1, d1] = inicio.split('-').map(Number);
+  const [a2, m2, d2] = fim.split('-').map(Number);
+  return { start: new Date(a1, m1 - 1, d1), end: new Date(a2, m2 - 1, d2) };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DIA DA SEMANA — a partir de objeto Date do driver mssql
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Retorna nome do dia em pt-BR a partir de Date do driver mssql, no fuso Manaus.
+ * Não depende de DATENAME/LANGUAGE do SQL Server.
+ */
+export function calcDiaSemana(date: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: TIMEZONE, weekday: 'long' }).format(date);
+}
+
+/** @deprecated use calcDiaSemana(date) */
 export function diaSemanaParaPtBR(dia: string): string {
   const mapa: Record<string, string> = {
-    Monday: 'Segunda-feira',
-    Tuesday: 'Terça-feira',
-    Wednesday: 'Quarta-feira',
-    Thursday: 'Quinta-feira',
-    Friday: 'Sexta-feira',
-    Saturday: 'Sábado',
-    Sunday: 'Domingo',
+    Monday: 'Segunda-feira', Tuesday: 'Terça-feira', Wednesday: 'Quarta-feira',
+    Thursday: 'Quinta-feira', Friday: 'Sexta-feira', Saturday: 'Sábado', Sunday: 'Domingo',
   };
   return mapa[dia] ?? dia;
 }
 
-/**
- * Retorna o nome do dia da semana em português a partir de um objeto Date,
- * considerando o fuso de Manaus. Não depende do LANGUAGE do SQL Server.
- * Usar sempre que a data vier do banco como objeto Date (driver mssql).
- */
-export function calcDiaSemana(date: Date): string {
-  return new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Manaus',
-    weekday: 'long',
-  }).format(date);
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// FORMATAÇÃO DE VALORES
+// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Formata valor em moeda brasileira
- */
 export function formatarMoeda(valor: number): string {
-  return valor.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
+  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-/**
- * Formata número com separador de milhares
- */
 export function formatarNumero(num: number, casasDecimais: number = 2): string {
   return num.toLocaleString('pt-BR', {
     minimumFractionDigits: casasDecimais,
@@ -123,183 +145,73 @@ export function formatarNumero(num: number, casasDecimais: number = 2): string {
 }
 
 /**
- * Formata data para formato brasileiro
+ * Formata data para DD/MM/YYYY.
+ * Se receber string YYYY-MM-DD, formata diretamente sem construir Date
+ * (evita off-by-one de timezone). Se receber Date, usa Intl com fuso Manaus.
  */
 export function formatarData(data: Date | string): string {
-  const date = typeof data === 'string' ? new Date(data) : data;
-  return date.toLocaleDateString('pt-BR');
+  if (typeof data === 'string') {
+    const match = data.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  }
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: TIMEZONE }).format(data as Date);
 }
 
-/**
- * Formata data e hora
- */
 export function formatarDataHora(data: Date | string): string {
   const date = typeof data === 'string' ? new Date(data) : data;
   return date.toLocaleString('pt-BR');
 }
 
-/**
- * Pega as datas da última semana (Segunda a Domingo) no fuso de Manaus
- */
-export function getPreviousWeekRange(): { start: Date; end: Date } {
-  const today = hojeManaus();
-  const currentDate = new Date(today);
-  const dayOfWeek = currentDate.getDay();
-  const adjustedDay = dayOfWeek === 0 ? 7 : dayOfWeek;
-
-  currentDate.setDate(currentDate.getDate() - adjustedDay + 1);
-
-  const startOfPreviousWeek = new Date(currentDate);
-  startOfPreviousWeek.setDate(startOfPreviousWeek.getDate() - 7);
-
-  const endOfPreviousWeek = new Date(startOfPreviousWeek);
-  endOfPreviousWeek.setDate(endOfPreviousWeek.getDate() + 6);
-
-  startOfPreviousWeek.setHours(0, 0, 0, 0);
-  endOfPreviousWeek.setHours(23, 59, 59, 999);
-
-  return {
-    start: startOfPreviousWeek,
-    end: endOfPreviousWeek,
-  };
+export function formatarIntervaloData(dataInicio: Date | string, dataFim: Date | string): string {
+  return `${formatarData(dataInicio)} a ${formatarData(dataFim)}`;
 }
 
-/**
- * Pega as datas da semana atual (Segunda a Domingo) no fuso de Manaus
- */
-export function getCurrentWeekRange(): { start: Date; end: Date } {
-  const today = hojeManaus();
-  const dayOfWeek = today.getDay();
-  const adjustedDay = dayOfWeek === 0 ? 7 : dayOfWeek;
-
-  const startOfCurrentWeek = new Date(today);
-  startOfCurrentWeek.setDate(today.getDate() - adjustedDay + 1);
-  startOfCurrentWeek.setHours(0, 0, 0, 0);
-
-  const endOfCurrentWeek = new Date(startOfCurrentWeek);
-  endOfCurrentWeek.setDate(startOfCurrentWeek.getDate() + 6);
-  endOfCurrentWeek.setHours(23, 59, 59, 999);
-
-  return {
-    start: startOfCurrentWeek,
-    end: endOfCurrentWeek,
-  };
-}
-
-/**
- * Formata percentual
- */
 export function formatarPercentual(valor: number, casasDecimais: number = 2): string {
   return `${valor.toLocaleString('pt-BR', {
-    minimumFractionDigits: casasDecimais,
-    maximumFractionDigits: casasDecimais,
+    minimumFractionDigits: casasDecimais, maximumFractionDigits: casasDecimais,
   })}%`;
 }
 
-/**
- * Formata duração em horas/minutos
- */
 export function formatarDuracao(minutos: number): string {
   const horas = Math.floor(minutos / 60);
   const mins = minutos % 60;
-
-  if (horas === 0) {
-    return `${mins}m`;
-  }
-
-  if (mins === 0) {
-    return `${horas}h`;
-  }
-
+  if (horas === 0) return `${mins}m`;
+  if (mins === 0) return `${horas}h`;
   return `${horas}h ${mins}m`;
 }
 
-/**
- * Formata tamanho de arquivo
- */
 export function formatarTamanhoArquivo(bytes: number): string {
   const unidades = ['B', 'KB', 'MB', 'GB'];
-  let tamanho = bytes;
-  let unidadeIndex = 0;
-
-  while (tamanho >= 1024 && unidadeIndex < unidades.length - 1) {
-    tamanho /= 1024;
-    unidadeIndex++;
-  }
-
-  return `${tamanho.toFixed(2)} ${unidades[unidadeIndex]}`;
+  let tamanho = bytes; let i = 0;
+  while (tamanho >= 1024 && i < unidades.length - 1) { tamanho /= 1024; i++; }
+  return `${tamanho.toFixed(2)} ${unidades[i]}`;
 }
 
-/**
- * Trunca string com ellipsis
- */
 export function truncarString(str: string, maxLength: number): string {
-  if (str.length <= maxLength) {
-    return str;
-  }
-  return str.substring(0, maxLength - 3) + '...';
+  return str.length <= maxLength ? str : str.substring(0, maxLength - 3) + '...';
 }
 
-/**
- * Capitaliza primeira letra
- */
 export function capitalizarPrimeira(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
-/**
- * Capitaliza todas as palavras
- */
 export function capitalizarPalavras(str: string): string {
-  return str
-    .split(' ')
-    .map((palavra) => capitalizarPrimeira(palavra))
-    .join(' ');
+  return str.split(' ').map(capitalizarPrimeira).join(' ');
 }
 
-/**
- * Converte booleano para sim/não
- */
 export function formatarBooleano(valor: boolean): string {
   return valor ? 'Sim' : 'Não';
 }
 
-/**
- * Formata intervalo de datas
- */
-export function formatarIntervaloData(dataInicio: Date | string, dataFim: Date | string): string {
-  const inicio = formatarData(dataInicio);
-  const fim = formatarData(dataFim);
-  return `${inicio} a ${fim}`;
-}
-
-/**
- * Converte array para string com separador
- */
 export function formatarLista(items: string[], separador: string = ', '): string {
-  if (items.length === 0) {
-    return '';
-  }
-
-  if (items.length === 1) {
-    return items[0];
-  }
-
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
   return items.slice(0, -1).join(separador) + ` e ${items[items.length - 1]}`;
 }
 
-/**
- * Formata nome de equipe com emoji
- */
 export function formatarEquipeComEmoji(nomeEquipe: string): string {
-  const emojis: { [key: string]: string } = {
-    loja: '🏪',
-    'food service': '🍽️',
-    varejo: '🛒',
-    redes: '🏬',
-    telemarketing: '☎️',
+  const emojis: Record<string, string> = {
+    loja: '🏪', 'food service': '🍽️', varejo: '🛒', redes: '🏬', telemarketing: '☎️',
   };
-
-  const emoji = emojis[nomeEquipe.toLowerCase()] || '📊';
-  return `${emoji} ${nomeEquipe}`;
+  return `${emojis[nomeEquipe.toLowerCase()] || '📊'} ${nomeEquipe}`;
 }
