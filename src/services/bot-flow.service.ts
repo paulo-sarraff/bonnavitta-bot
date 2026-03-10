@@ -529,9 +529,9 @@ class BotFlowService {
     }
 
     return {
-      proximoEstado: EstadoBot.AGUARDANDO_FORMATO_DIA,
-      contextoAtualizado: { ...contexto, dataInicio, dataFim, tipoResumoDia: opcao, agrupamentoDia: agrupamento },
-      resposta: this.getMenuFormatoDia(),
+      proximoEstado: EstadoBot.PROCESSANDO,
+      contextoAtualizado: { ...contexto, dataInicio, dataFim, tipoResumoDia: opcao, agrupamentoDia: agrupamento, subFluxo: 'vendas_por_dia', formatoDia: 'extenso' },
+      resposta: { resposta: '⏳ *Processando...* Buscando dados de vendas por dia.', proximoEstado: EstadoBot.PROCESSANDO },
     };
   }
 
@@ -546,7 +546,7 @@ class BotFlowService {
     }
     return {
       proximoEstado: EstadoBot.PROCESSANDO,
-      contextoAtualizado: { ...contexto, subFluxo: 'vendas_por_dia', formatoDia: opcao === '1' ? 'extenso' : 'grafico' },
+      contextoAtualizado: { ...contexto, subFluxo: 'vendas_por_dia', formatoDia: 'extenso' },
       resposta: { resposta: '⏳ *Processando...* Buscando dados de vendas por dia.', proximoEstado: EstadoBot.PROCESSANDO },
     };
   }

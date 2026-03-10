@@ -390,8 +390,7 @@ class VendasService {
 
   /**
    * Obtém todos os fabricantes com venda de um vendedor específico no período.
-   * Usa sp_GetVendasPorFabricante filtrada pela view via SetorClientes.
-   * ⚠️ Solução de contorno — idealmente criar sp_GetFabricantesPorVendedor no banco.
+   * Query direta na view — não depende de SP adicional no banco.
    */
   async getFabricantesDoVendedor(
     dataInicio: string,
@@ -406,7 +405,17 @@ class VendasService {
       request.input('DataFim', sql.Date, dataFim);
       request.input('SetorClientes', sql.Int, setorClientes);
 
-      const result = await request.execute('sp_GetFabricantesPorVendedor');
+      const result = await request.query(`
+        SELECT
+          Fabricante AS NomeFabricante,
+          SUM(ValorFinal) AS TotalVendas,
+          COUNT(DISTINCT NumeroPed) AS QuantidadePedidos
+        FROM [BonnaVitta.Log].dbo.vw_fVendas
+        WHERE CAST(Data AS DATE) BETWEEN @DataInicio AND @DataFim
+          AND Setor_Cliente = @SetorClientes
+        GROUP BY Fabricante
+        ORDER BY TotalVendas DESC
+      `);
 
       logger.info(`Fabricantes do vendedor ${setorClientes}: ${result.recordset.length} registros`);
       return result.recordset;
