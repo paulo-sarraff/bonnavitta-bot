@@ -135,23 +135,20 @@ export class BotController {
         let texto = `📊 *Vendas por Supervisor*\n`;
         texto += `📅 Período: ${this.fmtPeriodo(contexto.dataInicio, contexto.dataFim)}\n\n`;
 
-        // Itera na ordem fixa; exibe zeros para supervisores sem dados
-        // Match contra NomeSetor (SP nova) ou NomeSupervisor/Supervisor (SP antiga)
+        // Itera na ordem fixa dos setores; nome de exibição sempre vem do SUPERVISORES
+        // Match por NomeSupervisor (vw_fPreVendas) — contém exatamente LOJA, FOOD SERVICE, etc.
         SUPERVISORES.forEach(sup => {
           const nomeSup = sup.nome.toUpperCase();
           const v = vendas.find((x: any) => {
-            const setor      = (x.NomeSetor     ?? '').toUpperCase();
-            const supervisor = (x.NomeSupervisor ?? x.Supervisor ?? '').toUpperCase();
-            return setor.includes(nomeSup) || nomeSup.includes(setor) ||
-                   supervisor.includes(nomeSup) || nomeSup.includes(supervisor);
+            const col = (x.NomeSupervisor ?? x.NomeSetor ?? x.Supervisor ?? '').toUpperCase().trim();
+            return col === nomeSup;
           });
-          const nome  = v ? v.NomeSetor.trim() : sup.nome;
-          const total = v ? v.TotalVendas      : 0;
-          const vends = v ? v.QuantidadeVendedores : 0;
-          const peds  = v ? v.QuantidadePedidos    : 0;
-          const tm    = v ? v.TicketMedio           : 0;
+          const total = v ? (v.TotalVendas         ?? 0) : 0;
+          const vends = v ? (v.QuantidadeVendedores ?? 0) : 0;
+          const peds  = v ? (v.QuantidadePedidos    ?? 0) : 0;
+          const tm    = v ? (v.TicketMedio           ?? 0) : 0;
 
-          texto += `${sup.id} - ${nome}\n`;
+          texto += `${sup.id} - ${sup.nome}\n`;
           texto += `💰 R$ ${this.fmt(total)}\n`;
           texto += `👥 ${vends} Vendedor(es)\n`;
           texto += `📦 ${peds} pedidos\n`;
