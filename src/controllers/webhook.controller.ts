@@ -58,11 +58,12 @@ export class WebhookController {
       // =========================
       if (resultado?.resposta) {
         const mensagemFormatada = formatarMensagemTelegram(resultado);
+        await telegramService.enviarMensagem(chatId, mensagemFormatada);
+      }
 
-        await telegramService.enviarMensagem(
-          chatId,
-          mensagemFormatada
-        );
+      // Envia gráfico como foto separada, se houver
+      if (resultado?.grafico) {
+        await telegramService.enviarFoto(chatId, resultado.grafico);
       }
     } catch (error) {
       logger.error('❌ Erro no webhook do Telegram:', error);
