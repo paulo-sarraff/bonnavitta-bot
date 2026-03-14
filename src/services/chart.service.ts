@@ -1,521 +1,294 @@
-import puppeteer from 'puppeteer';
+/**
+ * ChartService — geração de gráficos PNG usando chartjs-node-canvas.
+ *
+ * Escolha de tipo por contexto:
+ *   Supervisores    → barras horizontais  (5 itens fixos, comparação de valor)
+ *   Vendedores      → barras horizontais  (lista variável, labels com nome)
+ *   Fabricantes     → barras horizontais  (ranking de participação, labels longos)
+ *   Vendas dia/semana_dias/mes_dias → linha com área  (série temporal contínua)
+ *   Vendas por semana/mes_semanas   → barras verticais (períodos discretos, poucos pontos)
+ *   Vendas por mês/ano_meses        → barras verticais (até 12 pontos, comparação mensal)
+ *
+ * NÃO usa Puppeteer nem CDN externo — renderização é 100% server-side.
+ */
+
+import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
+import DataLabelsPlugin from 'chartjs-plugin-datalabels';
+import { ChartConfiguration, ChartType } from 'chart.js';
 import fs from 'fs';
 import path from 'path';
 import logger from '../utils/logger.js';
 
-// Interfaces para os dados
-interface VendasPorSupervisor {
-  NomeSetor: string;
-  QuantidadePedidos: number;
-  QuantidadeVendedores: number;
-  TotalVendas: number;
-  TicketMedio: number;
+// ── Dimensões ────────────────────────────────────────────────────────────────
+const W = 1000;
+const H = 520;
+
+// ── Paleta ───────────────────────────────────────────────────────────────────
+const CORES = [
+  '#2563EB','#16A34A','#DC2626','#D97706',
+  '#7C3AED','#0891B2','#BE185D','#065F46','#92400E','#1E3A8A',
+];
+const CORES_BG = CORES.map(c => c + 'CC'); // 80% opacidade
+
+// ── Renderer singleton ───────────────────────────────────────────────────────
+const renderer = new ChartJSNodeCanvas({
+  width: W, height: H, backgroundColour: 'white',
+  plugins: { modern: ['chartjs-plugin-datalabels'] },
+});
+
+// ── Tipos públicos ────────────────────────────────────────────────────────────
+export interface ItemGrafico  { label: string; valor: number }
+export interface ItemSerie    { label: string; valor: number }
+
+// ── Helpers internos ──────────────────────────────────────────────────────────
+
+function fmtBRL(v: number): string {
+  // Versão abreviada para eixos
+  if (v >= 1_000_000) return `R$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000)     return `R$${(v / 1_000).toFixed(0)}k`;
+  return `R$${v.toFixed(0)}`;
 }
 
-interface VendasPorVendedorSP {
-  NomeVendedor: string;
-  NomeSupervisor: string;
-  QuantidadePedidos: number;
-  TotalVendas: number;
-  TicketMedio: number;
+function fmtBRLFull(v: number): string {
+  // Versão completa para labels de valor (ex: R$ 149.054,22)
+  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-interface VendasPorDia {
-  Data: string;
-  QuantidadePedidos: number;
-  TotalVendas: number;
-  TicketMedio: number;
+function chartsDir(): string {
+  const dir = path.join(process.cwd(), 'charts');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
 }
 
-interface VendasPorFabricante {
-  NomeFabricante: string;
-  QuantidadePedidos: number;
-  TotalVendas: number;
-  TicketMedio: number;
+async function salvar(config: ChartConfiguration, prefixo: string): Promise<string> {
+  const buffer = await renderer.renderToBuffer(config as any);
+  const nome   = `${prefixo}-${Date.now()}.png`;
+  const dest   = path.join(chartsDir(), nome);
+  fs.writeFileSync(dest, buffer);
+  logger.info(`Gráfico gerado: ${nome}`);
+  return dest;
 }
 
-interface RankingProdutoSP {
-  NomeProduto: string;
-  NomeFabricante: string;
-  QuantidadeVendida: number;
-  TotalVendas: number;
-  TicketMedio: number;
+// ── Barras horizontais ────────────────────────────────────────────────────────
+async function barrasH(titulo: string, itens: ItemGrafico[], prefixo: string): Promise<string | null> {
+  if (!itens.length) return null;
+
+  const ordenados = [...itens].sort((a, b) => b.valor - a.valor);
+  const labels    = ordenados.map(i => i.label.trim());
+  const valores   = ordenados.map(i => i.valor);
+
+  // Altura dinâmica para listas longas
+  const alturaFlex = Math.max(H, labels.length * 46 + 140);
+  const rend = alturaFlex !== H
+    ? new ChartJSNodeCanvas({ width: W, height: alturaFlex, backgroundColour: 'white', plugins: { modern: ['chartjs-plugin-datalabels'] } })
+    : renderer;
+
+  const config: ChartConfiguration = {
+    type: 'bar' as ChartType,
+    data: {
+      labels,
+      datasets: [{
+        label: 'Vendas',
+        data: valores,
+        backgroundColor: CORES_BG.slice(0, valores.length),
+        borderColor:     CORES.slice(0, valores.length),
+        borderWidth: 1.5,
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: false,
+      layout: { padding: { right: 90 } },
+      plugins: {
+        title: { display: true, text: titulo, font: { size: 15, weight: 'bold' }, padding: { bottom: 14 } },
+        legend: { display: false },
+        datalabels: {
+          anchor: 'end',
+          align: 'right',
+          formatter: (v: number) => fmtBRLFull(v),
+          font: { size: 11, weight: 'bold' },
+          color: '#1F2937',
+          clip: false,
+        },
+      } as any,
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: { callback: (v) => fmtBRL(Number(v)), maxTicksLimit: 6, font: { size: 11 } },
+          grid: { color: '#E5E7EB' },
+        },
+        y: { ticks: { font: { size: 12 } }, grid: { display: false } },
+      },
+    },
+  };
+
+  return alturaFlex !== H
+    ? (async () => {
+        const buf = await rend.renderToBuffer(config as any);
+        const nome = `${prefixo}-${Date.now()}.png`;
+        const dest = path.join(chartsDir(), nome);
+        fs.writeFileSync(dest, buf);
+        logger.info(`Gráfico gerado: ${nome}`);
+        return dest;
+      })()
+    : salvar(config, prefixo);
 }
 
-interface VendasPorEquipe {
-  NomeEquipe: string;
-  QuantidadePedidos: number;
-  TotalVendas: number;
-  TicketMedio: number;
-  QuantidadeUnidades: number;
+// ── Barras verticais ──────────────────────────────────────────────────────────
+async function barrasV(titulo: string, series: ItemSerie[], prefixo: string): Promise<string | null> {
+  if (!series.length) return null;
+
+  const config: ChartConfiguration = {
+    type: 'bar' as ChartType,
+    data: {
+      labels: series.map(s => s.label),
+      datasets: [{
+        label: 'Vendas',
+        data: series.map(s => s.valor),
+        backgroundColor: CORES_BG[0],
+        borderColor:     CORES[0],
+        borderWidth: 1.5,
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: false,
+      layout: { padding: { top: 28 } },
+      plugins: {
+        title: { display: true, text: titulo, font: { size: 15, weight: 'bold' }, padding: { bottom: 14 } },
+        legend: { display: false },
+        datalabels: {
+          anchor: 'end',
+          align: 'top',
+          formatter: (v: number) => fmtBRLFull(v),
+          font: { size: 10, weight: 'bold' },
+          color: '#1F2937',
+          rotation: -35,
+          clip: false,
+        },
+      } as any,
+      scales: {
+        x: { ticks: { font: { size: 11 }, maxRotation: 35 }, grid: { display: false } },
+        y: {
+          beginAtZero: true,
+          ticks: { callback: (v) => fmtBRL(Number(v)), maxTicksLimit: 6, font: { size: 11 } },
+          grid: { color: '#E5E7EB' },
+        },
+      },
+    },
+  };
+
+  return salvar(config, prefixo);
 }
 
+// ── Linha com área ────────────────────────────────────────────────────────────
+async function linha(titulo: string, series: ItemSerie[], prefixo: string): Promise<string | null> {
+  if (!series.length) return null;
+
+  const config: ChartConfiguration = {
+    type: 'line' as ChartType,
+    data: {
+      labels: series.map(s => s.label),
+      datasets: [{
+        label: 'Vendas',
+        data: series.map(s => s.valor),
+        borderColor:     CORES[0],
+        backgroundColor: CORES[0] + '22',
+        borderWidth: 2.5,
+        pointBackgroundColor: CORES[0],
+        pointRadius: series.length <= 14 ? 5 : 3,
+        pointHoverRadius: 7,
+        fill: true,
+        tension: 0.3,
+      }],
+    },
+    options: {
+      responsive: false,
+      layout: { padding: { top: 24 } },
+      plugins: {
+        title: { display: true, text: titulo, font: { size: 15, weight: 'bold' }, padding: { bottom: 14 } },
+        legend: { display: false },
+        datalabels: {
+          anchor: 'top',
+          align: 'top',
+          formatter: (v: number) => fmtBRLFull(v),
+          font: { size: series.length > 14 ? 8 : 10, weight: 'bold' },
+          color: '#1F2937',
+          clip: false,
+        },
+      } as any,
+      scales: {
+        x: {
+          ticks: { font: { size: series.length > 20 ? 9 : 11 }, maxRotation: 45 },
+          grid: { color: '#E5E7EB' },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { callback: (v) => fmtBRL(Number(v)), maxTicksLimit: 6, font: { size: 11 } },
+          grid: { color: '#E5E7EB' },
+        },
+      },
+    },
+  };
+
+  return salvar(config, prefixo);
+}
+
+// ── Classe principal ──────────────────────────────────────────────────────────
 class ChartService {
-  private chartsDir: string;
 
-  constructor() {
-    this.chartsDir = path.join(process.cwd(), 'charts');
-    if (!fs.existsSync(this.chartsDir)) {
-      fs.mkdirSync(this.chartsDir, { recursive: true });
-    }
+  /** Supervisores — barras horizontais */
+  async gerarGraficoSupervisores(itens: ItemGrafico[], titulo = 'Vendas por Supervisor'): Promise<string | null> {
+    try { return await barrasH(titulo, itens, 'supervisores'); }
+    catch (e) { logger.error('Erro gráfico supervisores:', e); return null; }
   }
 
-  /**
-   * Valida se há dados para renderizar
-   */
-  private validarDados(labels: string[], valores: number[]): boolean {
-    if (!labels || labels.length === 0) {
-      logger.warn('Nenhum label fornecido para o gráfico');
-      return false;
-    }
-    
-    if (!valores || valores.length === 0) {
-      logger.warn('Nenhum valor fornecido para o gráfico');
-      return false;
-    }
-    
-    if (labels.length !== valores.length) {
-      logger.warn('Quantidade de labels diferente de valores');
-      return false;
-    }
-    
-    return true;
+  /** Vendedores — barras horizontais */
+  async gerarGraficoVendedores(itens: ItemGrafico[], titulo = 'Vendas por Vendedor'): Promise<string | null> {
+    try { return await barrasH(titulo, itens, 'vendedores'); }
+    catch (e) { logger.error('Erro gráfico vendedores:', e); return null; }
   }
 
-  /**
-   * Gera gráfico de vendas por supervisor
-   */
-  async gerarGraficoVendasPorSupervisor(vendas: VendasPorSupervisor[]): Promise<string | null> {
-    try {
-      if (!vendas || vendas.length === 0) {
-        logger.warn('Nenhum dado de vendas por supervisor fornecido');
-        return null;
-      }
-
-      const labels = vendas.map((v) => v.NomeSetor);
-      const valores = vendas.map((v) => v.TotalVendas);
-
-      if (!this.validarDados(labels, valores)) {
-        return null;
-      }
-
-      const html = this.gerarHtmlGraficoBarras(
-        'Vendas por Supervisor',
-        labels,
-        valores,
-        'Valor (R$)'
-      );
-
-      const arquivo = await this.renderizarGrafico(html, 'vendas-supervisor');
-      return arquivo;
-    } catch (error) {
-      logger.error('Erro ao gerar gráfico de vendas por supervisor:', error);
-      return null;
-    }
+  /** Fabricantes — barras horizontais */
+  async gerarGraficoFabricantes(itens: ItemGrafico[], titulo = 'Vendas por Fabricante'): Promise<string | null> {
+    try { return await barrasH(titulo, itens, 'fabricantes'); }
+    catch (e) { logger.error('Erro gráfico fabricantes:', e); return null; }
   }
 
-  /**
-   * Gera gráfico de vendas por vendedor
-   */
-  async gerarGraficoVendasPorVendedor(vendas: VendasPorVendedorSP[]): Promise<string | null> {
-    try {
-      if (!vendas || vendas.length === 0) {
-        logger.warn('Nenhum dado de vendas por vendedor fornecido');
-        return null;
-      }
-
-      const labels = vendas.map((v) => v.NomeVendedor);
-      const valores = vendas.map((v) => v.TotalVendas);
-
-      if (!this.validarDados(labels, valores)) {
-        return null;
-      }
-
-      const html = this.gerarHtmlGraficoBarras(
-        'Vendas por Vendedor',
-        labels,
-        valores,
-        'Valor (R$)'
-      );
-
-      const arquivo = await this.renderizarGrafico(html, 'vendas-vendedor');
-      return arquivo;
-    } catch (error) {
-      logger.error('Erro ao gerar gráfico de vendas por vendedor:', error);
-      return null;
-    }
+  /** Vendas dia a dia — linha com área (série temporal contínua) */
+  async gerarGraficoVendasDia(series: ItemSerie[], titulo = 'Vendas por Dia'): Promise<string | null> {
+    try { return await linha(titulo, series, 'vendas-dia'); }
+    catch (e) { logger.error('Erro gráfico vendas dia:', e); return null; }
   }
 
-  /**
-   * Gera gráfico de vendas por dia
-   */
-  async gerarGraficoVendasPorDia(vendas: VendasPorDia[]): Promise<string | null> {
-    try {
-      if (!vendas || vendas.length === 0) {
-        logger.warn('Nenhum dado de vendas por dia fornecido');
-        return null;
-      }
-
-      const labels = vendas.map((v) => new Date(v.Data).toLocaleDateString('pt-BR'));
-      const valores = vendas.map((v) => v.TotalVendas);
-
-      if (!this.validarDados(labels, valores)) {
-        return null;
-      }
-
-      const html = this.gerarHtmlGraficoLinha(
-        'Vendas por Dia',
-        labels,
-        valores,
-        'Valor (R$)'
-      );
-
-      const arquivo = await this.renderizarGrafico(html, 'vendas-dia');
-      return arquivo;
-    } catch (error) {
-      logger.error('Erro ao gerar gráfico de vendas por dia:', error);
-      return null;
-    }
+  /** Vendas por semana — barras verticais (períodos discretos) */
+  async gerarGraficoVendasSemana(series: ItemSerie[], titulo = 'Vendas por Semana'): Promise<string | null> {
+    try { return await barrasV(titulo, series, 'vendas-semana'); }
+    catch (e) { logger.error('Erro gráfico vendas semana:', e); return null; }
   }
 
-  /**
-   * Gera gráfico de vendas por fabricante
-   */
-  async gerarGraficoVendasPorFabricante(vendas: VendasPorFabricante[]): Promise<string | null> {
-    try {
-      if (!vendas || vendas.length === 0) {
-        logger.warn('Nenhum dado de vendas por fabricante fornecido');
-        return null;
-      }
-
-      const labels = vendas.map((v) => v.NomeFabricante);
-      const valores = vendas.map((v) => v.TotalVendas);
-
-      if (!this.validarDados(labels, valores)) {
-        return null;
-      }
-
-      const html = this.gerarHtmlGraficoBarras(
-        'Vendas por Fabricante',
-        labels,
-        valores,
-        'Valor (R$)'
-      );
-
-      const arquivo = await this.renderizarGrafico(html, 'vendas-fabricante');
-      return arquivo;
-    } catch (error) {
-      logger.error('Erro ao gerar gráfico de vendas por fabricante:', error);
-      return null;
-    }
+  /** Vendas por mês — barras verticais (até 12 colunas) */
+  async gerarGraficoVendasMes(series: ItemSerie[], titulo = 'Vendas por Mês'): Promise<string | null> {
+    try { return await barrasV(titulo, series, 'vendas-mes'); }
+    catch (e) { logger.error('Erro gráfico vendas mês:', e); return null; }
   }
 
-  /**
-   * Gera gráfico de vendas por equipe
-   */
-  async gerarGraficoVendasPorEquipe(vendas: VendasPorEquipe[]): Promise<string | null> {
-    try {
-      if (!vendas || vendas.length === 0) {
-        logger.warn('Nenhum dado de vendas por equipe fornecido');
-        return null;
-      }
-
-      const labels = vendas.map((v) => v.NomeEquipe);
-      const valores = vendas.map((v) => v.TotalVendas);
-
-      if (!this.validarDados(labels, valores)) {
-        return null;
-      }
-
-      const html = this.gerarHtmlGraficoBarras(
-        'Vendas por Equipe',
-        labels,
-        valores,
-        'Valor (R$)'
-      );
-
-      const arquivo = await this.renderizarGrafico(html, 'vendas-equipe');
-      return arquivo;
-    } catch (error) {
-      logger.error('Erro ao gerar gráfico de vendas por equipe:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Gera gráfico de ranking de produtos
-   */
-  async gerarGraficoRankingProdutos(produtos: RankingProdutoSP[]): Promise<string | null> {
-    try {
-      if (!produtos || produtos.length === 0) {
-        logger.warn('Nenhum dado de ranking de produtos fornecido');
-        return null;
-      }
-
-      const labels = produtos.map((p) => p.NomeProduto);
-      const valores = produtos.map((p) => p.QuantidadeVendida);
-
-      if (!this.validarDados(labels, valores)) {
-        return null;
-      }
-
-      const html = this.gerarHtmlGraficoBarras(
-        'Ranking de Produtos',
-        labels,
-        valores,
-        'Quantidade Vendida'
-      );
-
-      const arquivo = await this.renderizarGrafico(html, 'ranking-produtos');
-      return arquivo;
-    } catch (error) {
-      logger.error('Erro ao gerar gráfico de ranking de produtos:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Gera HTML para gráfico de barras
-   */
-  private gerarHtmlGraficoBarras(
-    titulo: string,
-    labels: string[],
-    valores: number[],
-    labelEixoY: string
-  ): string {
-    const cores = [
-      '#FF6B6B',
-      '#4ECDC4',
-      '#45B7D1',
-      '#FFA07A',
-      '#98D8C8',
-      '#F7DC6F',
-      '#BB8FCE',
-      '#85C1E2',
-    ];
-
-    const labelsJSON = JSON.stringify(labels);
-    const valoresJSON = JSON.stringify(valores);
-    const coresJSON = JSON.stringify(cores.slice(0, valores.length));
-
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <style>
-          body { margin: 0; padding: 20px; background: white; font-family: Arial, sans-serif; }
-          canvas { max-width: 100%; }
-        </style>
-      </head>
-      <body>
-        <canvas id="chart"></canvas>
-        <script>
-          // Função para sinalizar que o gráfico foi renderizado
-          window.chartReady = false;
-          
-          const ctx = document.getElementById('chart' ).getContext('2d');
-          const chart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-              labels: ${labelsJSON},
-              datasets: [{
-                label: '${labelEixoY}',
-                data: ${valoresJSON},
-                backgroundColor: ${coresJSON},
-                borderColor: '#333',
-                borderWidth: 1
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                title: {
-                  display: true,
-                  text: '${titulo}',
-                  font: { size: 16, weight: 'bold' }
-                },
-                legend: { display: true }
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  title: { display: true, text: '${labelEixoY}' }
-                }
-              }
-            }
-          });
-          
-          // Sinalizar quando o gráfico está pronto
-          chart.resize();
-          window.chartReady = true;
-        </script>
-      </body>
-      </html>
-    `;
-  }
-
-  /**
-   * Gera HTML para gráfico de linhas
-   */
-  private gerarHtmlGraficoLinha(
-    titulo: string,
-    labels: string[],
-    valores: number[],
-    labelEixoY: string
-  ): string {
-    const labelsJSON = JSON.stringify(labels);
-    const valoresJSON = JSON.stringify(valores);
-
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <style>
-          body { margin: 0; padding: 20px; background: white; font-family: Arial, sans-serif; }
-          canvas { max-width: 100%; }
-        </style>
-      </head>
-      <body>
-        <canvas id="chart"></canvas>
-        <script>
-          // Função para sinalizar que o gráfico foi renderizado
-          window.chartReady = false;
-          
-          const ctx = document.getElementById('chart' ).getContext('2d');
-          const chart = new Chart(ctx, {
-            type: 'line',
-            data: {
-              labels: ${labelsJSON},
-              datasets: [{
-                label: '${labelEixoY}',
-                data: ${valoresJSON},
-                borderColor: '#4ECDC4',
-                backgroundColor: 'rgba(78, 205, 196, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                title: {
-                  display: true,
-                  text: '${titulo}',
-                  font: { size: 16, weight: 'bold' }
-                },
-                legend: { display: true }
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  title: { display: true, text: '${labelEixoY}' }
-                }
-              }
-            }
-          });
-          
-          // Sinalizar quando o gráfico está pronto
-          chart.resize();
-          window.chartReady = true;
-        </script>
-      </body>
-      </html>
-    `;
-  }
-
-  /**
-   * Renderiza HTML para PNG usando Puppeteer
-   */
-  private async renderizarGrafico(html: string, nomeArquivo: string): Promise<string> {
-    let browser;
-    try {
-      browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      });
-
-      const page = await browser.newPage();
-      
-      // Definir viewport para melhor renderização
-      await page.setViewport({ width: 1200, height: 600 });
-      
-      // Carregar o HTML
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-      
-      // Aguardar o canvas estar disponível
-      await page.waitForSelector('canvas');
-      
-      // ✅ NOVO: Aguardar o Chart.js renderizar completamente
-      await page.waitForFunction(
-        'window.chartReady === true',
-        { timeout: 5000 }
-      );
-      
-      // ✅ NOVO: Aguardar mais um pouco para garantir renderização
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const timestamp = Date.now();
-      const nomeArquivoFinal = `${nomeArquivo}-${timestamp}.png`;
-      const caminhoArquivo = path.join(this.chartsDir, nomeArquivoFinal);
-
-      // Capturar screenshot do canvas
-      await page.screenshot({ 
-        path: caminhoArquivo, 
-        fullPage: true,
-        type: 'png'
-      });
-
-      logger.info(`Gráfico gerado com sucesso: ${nomeArquivoFinal}`);
-
-      return caminhoArquivo;
-    } catch (error) {
-      logger.error('Erro ao renderizar gráfico:', error);
-      throw error;
-    } finally {
-      if (browser) {
-        await browser.close();
-      }
-    }
-  }
-
-  /**
-   * Remove arquivo de gráfico antigo
-   */
   removerGraficoAntigo(caminhoArquivo: string): void {
     try {
-      if (fs.existsSync(caminhoArquivo)) {
-        fs.unlinkSync(caminhoArquivo);
-        logger.info(`Gráfico removido: ${caminhoArquivo}`);
-      }
-    } catch (error) {
-      logger.error('Erro ao remover gráfico:', error);
-    }
+      if (fs.existsSync(caminhoArquivo)) { fs.unlinkSync(caminhoArquivo); }
+    } catch (e) { logger.error('Erro ao remover gráfico:', e); }
   }
 
-  /**
-   * Limpa todos os gráficos antigos (mais de 1 hora)
-   */
   limparGraficosAntigos(): void {
     try {
-      const agora = Date.now();
-      const umHora = 60 * 60 * 1000;
-
-      const arquivos = fs.readdirSync(this.chartsDir);
-      arquivos.forEach((arquivo) => {
-        const caminhoCompleto = path.join(this.chartsDir, arquivo);
-        const stats = fs.statSync(caminhoCompleto);
-
-        if (agora - stats.mtimeMs > umHora) {
-          fs.unlinkSync(caminhoCompleto);
-          logger.info(`Gráfico antigo removido: ${arquivo}`);
-        }
+      const dir = chartsDir();
+      const limite = Date.now() - 60 * 60 * 1000;
+      fs.readdirSync(dir).forEach(f => {
+        const full = path.join(dir, f);
+        if (fs.statSync(full).mtimeMs < limite) fs.unlinkSync(full);
       });
-    } catch (error) {
-      logger.error('Erro ao limpar gráficos antigos:', error);
-    }
+    } catch (e) { logger.error('Erro ao limpar gráficos:', e); }
   }
 }
 
