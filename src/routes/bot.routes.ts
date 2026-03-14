@@ -29,7 +29,7 @@ router.get('/charts/:arquivo', (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store'); // cliente não deve cachear — arquivo será apagado
 
   // Apaga o arquivo do servidor assim que o envio terminar
-  res.sendFile(caminho, (err) => {
+  return res.sendFile(caminho, (err) => {
     if (err && !res.headersSent) {
       res.status(500).json({ erro: 'Erro ao enviar gráfico' });
     }
