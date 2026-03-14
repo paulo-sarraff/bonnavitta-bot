@@ -11,11 +11,9 @@ import authRoutes from './routes/auth.routes.js';
 import botRoutes from './routes/bot.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 
-// Importar middleware
-import { authMiddleware } from './middleware/auth.middleware.js';
-
 // ✅ NOVO: Importar sessionService para limpeza de sessões
 import { sessionService } from './services/session.service.js';
+import { chartService } from './services/chart.service.js';
 
 const app: Express = express();
 
@@ -126,12 +124,15 @@ export async function startServer(): Promise<void> {
     await initializeDatabase();
     logger.info('Banco de dados conectado com sucesso');
 
-    // ✅ NOVO: Iniciar limpeza periódica de sessões expiradas (a cada 1 hora)
-    const intervaloLimpeza = 60 * 60 * 1000; // 1 hora em ms
+    // Limpeza periódica de sessões expiradas e gráficos antigos (a cada 1 hora)
+    const intervaloLimpeza = 60 * 60 * 1000;
     setInterval(() => {
       sessionService.limparSessoesExpiradas();
+      chartService.limparGraficosAntigos();
     }, intervaloLimpeza);
-    logger.info('✅ Limpeza periódica de sessões iniciada (a cada 1 hora)');
+    // Limpeza inicial ao subir o servidor (remove arquivos de execuções anteriores)
+    chartService.limparGraficosAntigos();
+    logger.info('✅ Limpeza periódica de sessões e gráficos iniciada (a cada 1 hora)');
 
     // Iniciar servidor
     const port = config.api.port;
