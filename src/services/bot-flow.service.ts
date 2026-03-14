@@ -43,7 +43,7 @@ class BotFlowService {
 
     if (isAdminOrDiretoria) {
       return {
-        resposta: `🏪 O que deseja consultar?\n`,
+        resposta: `O que deseja consultar?\n`,
         opcoes: [
           { id: '1', texto: 'Menu Comercial', emoji: '📊' },
           { id: '0', texto: 'Sair', emoji: '👋' },
@@ -79,7 +79,7 @@ class BotFlowService {
   getMenuComercial(nomeUsuario: string = ''): MensagemBotResponse {
     const saudacao = nomeUsuario ? `🏪 *${nomeUsuario}* — Menu Comercial\n\n` : `🏪 *Menu Comercial*\n\n`;
     return {
-      resposta: `${saudacao}O que deseja consultar?\n`,
+      resposta: `O que deseja consultar?\n`,
       opcoes: [
         { id: '1', texto: 'Vendas por Supervisor',  emoji: '👔' },
         { id: '2', texto: 'Vendas por Vendedor',    emoji: '👥' },
@@ -529,9 +529,9 @@ class BotFlowService {
     }
 
     return {
-      proximoEstado: EstadoBot.PROCESSANDO,
-      contextoAtualizado: { ...contexto, dataInicio, dataFim, tipoResumoDia: opcao, agrupamentoDia: agrupamento, subFluxo: 'vendas_por_dia', formatoDia: 'extenso' },
-      resposta: { resposta: '⏳ *Processando...* Buscando dados de vendas por dia.', proximoEstado: EstadoBot.PROCESSANDO },
+      proximoEstado: EstadoBot.AGUARDANDO_FORMATO_DIA,
+      contextoAtualizado: { ...contexto, dataInicio, dataFim, tipoResumoDia: opcao, agrupamentoDia: agrupamento },
+      resposta: this.getMenuFormatoDia(),
     };
   }
 
@@ -546,7 +546,7 @@ class BotFlowService {
     }
     return {
       proximoEstado: EstadoBot.PROCESSANDO,
-      contextoAtualizado: { ...contexto, subFluxo: 'vendas_por_dia', formatoDia: 'extenso' },
+      contextoAtualizado: { ...contexto, subFluxo: 'vendas_por_dia', formatoDia: opcao === '1' ? 'extenso' : 'grafico' },
       resposta: { resposta: '⏳ *Processando...* Buscando dados de vendas por dia.', proximoEstado: EstadoBot.PROCESSANDO },
     };
   }

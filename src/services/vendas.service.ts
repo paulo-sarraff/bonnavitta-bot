@@ -20,7 +20,7 @@ interface VendasPorVendedorSP {
 }
 
 interface VendasPorDia {
-  Data: string;
+  DataPreVenda: string;
   QuantidadePedidos: number;
   TotalVendas: number;
   TicketMedio: number;
@@ -84,7 +84,7 @@ interface DetalheVendedor {
 }
 
 interface VendasPorDiaDetalhado {
-  Data: string;
+  DataPreVenda: string;
   DiaSemana: string;
   TotalVendas: number;
   QuantidadePedidos: number;
@@ -407,13 +407,13 @@ class VendasService {
 
       const result = await request.query(`
         SELECT
-          Fabricante AS NomeFabricante,
-          SUM(ValorFinal) AS TotalVendas,
-          COUNT(DISTINCT NumeroPed) AS QuantidadePedidos
-        FROM [BonnaVitta.Log].dbo.vw_fVendas
-        WHERE CAST(Data AS DATE) BETWEEN @DataInicio AND @DataFim
+          NomeFabricante,
+          SUM(ValorFinalPV) AS TotalVendas,
+          COUNT(DISTINCT Numero) AS QuantidadePedidos
+        FROM [BonnaVitta.Log].dbo.vw_fPreVendas
+        WHERE CAST(DataPreVenda AS DATE) BETWEEN @DataInicio AND @DataFim
           AND Setor_Cliente = @SetorClientes
-        GROUP BY Fabricante
+        GROUP BY NomeFabricante
         ORDER BY TotalVendas DESC
       `);
 
@@ -682,7 +682,7 @@ class VendasService {
     let resposta = `📅 *Vendas por Dia*\n\n`;
 
     vendas.forEach((venda) => {
-      const data = new Date(venda.Data).toLocaleDateString('pt-BR');
+      const data = new Date(venda.DataPreVenda).toLocaleDateString('pt-BR');
       resposta += `*${data}*\n`;
       resposta += `  💰 Total: R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
       resposta += `  📦 Pedidos: ${venda.QuantidadePedidos}\n`;
@@ -703,7 +703,7 @@ class VendasService {
     let resposta = `📅 *Vendas por Dia*\n\n`;
 
     vendas.forEach((venda) => {
-      const data = new Date(venda.Data).toLocaleDateString('pt-BR');
+      const data = new Date(venda.DataPreVenda).toLocaleDateString('pt-BR');
       resposta += `*${data}* (${venda.DiaSemana})\n`;
       resposta += `  Venda R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
       resposta += `  Quantidade de pedidos: ${venda.QuantidadePedidos}\n\n`;
