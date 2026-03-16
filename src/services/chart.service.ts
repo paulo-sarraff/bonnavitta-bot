@@ -13,7 +13,6 @@
  */
 
 import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
-import DataLabelsPlugin from 'chartjs-plugin-datalabels';
 import { ChartConfiguration, ChartType } from 'chart.js';
 import fs from 'fs';
 import path from 'path';
@@ -31,10 +30,7 @@ const CORES = [
 const CORES_BG = CORES.map(c => c + 'CC'); // 80% opacidade
 
 // ── Renderer singleton ───────────────────────────────────────────────────────
-const renderer = new ChartJSNodeCanvas({
-  width: W, height: H, backgroundColour: 'white',
-  plugins: { modern: ['chartjs-plugin-datalabels'] },
-});
+const renderer = new ChartJSNodeCanvas({ width: W, height: H, backgroundColour: 'white' });
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
 export interface ItemGrafico  { label: string; valor: number }
@@ -43,15 +39,10 @@ export interface ItemSerie    { label: string; valor: number }
 // ── Helpers internos ──────────────────────────────────────────────────────────
 
 function fmtBRL(v: number): string {
-  // Versão abreviada para eixos
+  // Formata sem casas decimais para não poluir os eixos
   if (v >= 1_000_000) return `R$${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 1_000)     return `R$${(v / 1_000).toFixed(0)}k`;
   return `R$${v.toFixed(0)}`;
-}
-
-function fmtBRLFull(v: number): string {
-  // Versão completa para labels de valor (ex: R$ 149.054,22)
-  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function chartsDir(): string {
@@ -60,17 +51,14 @@ function chartsDir(): string {
   return dir;
 }
 
-async function salvar(config: ChartConfiguration, prefixo: string): Promise<string> {
+async function renderBuffer(config: ChartConfiguration, prefixo: string): Promise<Buffer> {
   const buffer = await renderer.renderToBuffer(config as any);
-  const nome   = `${prefixo}-${Date.now()}.png`;
-  const dest   = path.join(chartsDir(), nome);
-  fs.writeFileSync(dest, buffer);
-  logger.info(`Gráfico gerado: ${nome}`);
-  return dest;
+  logger.info(`Gráfico renderizado: ${prefixo}`);
+  return buffer;
 }
 
 // ── Barras horizontais ────────────────────────────────────────────────────────
-async function barrasH(titulo: string, itens: ItemGrafico[], prefixo: string): Promise<string | null> {
+async function barrasH(titulo: string, itens: ItemGrafico[], prefixo: string): Promise<Buffer | null> {
   if (!itens.length) return null;
 
   const ordenados = [...itens].sort((a, b) => b.valor - a.valor);
@@ -80,7 +68,7 @@ async function barrasH(titulo: string, itens: ItemGrafico[], prefixo: string): P
   // Altura dinâmica para listas longas
   const alturaFlex = Math.max(H, labels.length * 46 + 140);
   const rend = alturaFlex !== H
-    ? new ChartJSNodeCanvas({ width: W, height: alturaFlex, backgroundColour: 'white', plugins: { modern: ['chartjs-plugin-datalabels'] } })
+    ? new ChartJSNodeCanvas({ width: W, height: alturaFlex, backgroundColour: 'white' })
     : renderer;
 
   const config: ChartConfiguration = {
@@ -99,19 +87,10 @@ async function barrasH(titulo: string, itens: ItemGrafico[], prefixo: string): P
     options: {
       indexAxis: 'y',
       responsive: false,
-      layout: { padding: { right: 90 } },
       plugins: {
         title: { display: true, text: titulo, font: { size: 15, weight: 'bold' }, padding: { bottom: 14 } },
         legend: { display: false },
-        datalabels: {
-          anchor: 'end',
-          align: 'right',
-          formatter: (v: number) => fmtBRLFull(v),
-          font: { size: 11, weight: 'bold' },
-          color: '#1F2937',
-          clip: false,
-        },
-      } as any,
+      },
       scales: {
         x: {
           beginAtZero: true,
@@ -123,20 +102,16 @@ async function barrasH(titulo: string, itens: ItemGrafico[], prefixo: string): P
     },
   };
 
-  return alturaFlex !== H
-    ? (async () => {
-        const buf = await rend.renderToBuffer(config as any);
-        const nome = `${prefixo}-${Date.now()}.png`;
-        const dest = path.join(chartsDir(), nome);
-        fs.writeFileSync(dest, buf);
-        logger.info(`Gráfico gerado: ${nome}`);
-        return dest;
-      })()
-    : salvar(config, prefixo);
+  if (alturaFlex !== H) {
+    const buf = await rend.renderToBuffer(config as any);
+    logger.info(`Gráfico renderizado: ${prefixo}`);
+    return buf;
+  }
+  return renderBuffer(config, prefixo);
 }
 
 // ── Barras verticais ──────────────────────────────────────────────────────────
-async function barrasV(titulo: string, series: ItemSerie[], prefixo: string): Promise<string | null> {
+async function barrasV(titulo: string, series: ItemSerie[], prefixo: string): Promise<Buffer | null> {
   if (!series.length) return null;
 
   const config: ChartConfiguration = {
@@ -154,20 +129,10 @@ async function barrasV(titulo: string, series: ItemSerie[], prefixo: string): Pr
     },
     options: {
       responsive: false,
-      layout: { padding: { top: 28 } },
       plugins: {
         title: { display: true, text: titulo, font: { size: 15, weight: 'bold' }, padding: { bottom: 14 } },
         legend: { display: false },
-        datalabels: {
-          anchor: 'end',
-          align: 'top',
-          formatter: (v: number) => fmtBRLFull(v),
-          font: { size: 10, weight: 'bold' },
-          color: '#1F2937',
-          rotation: -35,
-          clip: false,
-        },
-      } as any,
+      },
       scales: {
         x: { ticks: { font: { size: 11 }, maxRotation: 35 }, grid: { display: false } },
         y: {
@@ -179,11 +144,11 @@ async function barrasV(titulo: string, series: ItemSerie[], prefixo: string): Pr
     },
   };
 
-  return salvar(config, prefixo);
+  return renderBuffer(config, prefixo);
 }
 
 // ── Linha com área ────────────────────────────────────────────────────────────
-async function linha(titulo: string, series: ItemSerie[], prefixo: string): Promise<string | null> {
+async function linha(titulo: string, series: ItemSerie[], prefixo: string): Promise<Buffer | null> {
   if (!series.length) return null;
 
   const config: ChartConfiguration = {
@@ -205,19 +170,10 @@ async function linha(titulo: string, series: ItemSerie[], prefixo: string): Prom
     },
     options: {
       responsive: false,
-      layout: { padding: { top: 24 } },
       plugins: {
         title: { display: true, text: titulo, font: { size: 15, weight: 'bold' }, padding: { bottom: 14 } },
         legend: { display: false },
-        datalabels: {
-          anchor: 'top',
-          align: 'top',
-          formatter: (v: number) => fmtBRLFull(v),
-          font: { size: series.length > 14 ? 8 : 10, weight: 'bold' },
-          color: '#1F2937',
-          clip: false,
-        },
-      } as any,
+      },
       scales: {
         x: {
           ticks: { font: { size: series.length > 20 ? 9 : 11 }, maxRotation: 45 },
@@ -232,44 +188,44 @@ async function linha(titulo: string, series: ItemSerie[], prefixo: string): Prom
     },
   };
 
-  return salvar(config, prefixo);
+  return renderBuffer(config, prefixo);
 }
 
 // ── Classe principal ──────────────────────────────────────────────────────────
 class ChartService {
 
   /** Supervisores — barras horizontais */
-  async gerarGraficoSupervisores(itens: ItemGrafico[], titulo = 'Vendas por Supervisor'): Promise<string | null> {
+  async gerarGraficoSupervisores(itens: ItemGrafico[], titulo = 'Vendas por Supervisor'): Promise<Buffer | null> {
     try { return await barrasH(titulo, itens, 'supervisores'); }
     catch (e) { logger.error('Erro gráfico supervisores:', e); return null; }
   }
 
   /** Vendedores — barras horizontais */
-  async gerarGraficoVendedores(itens: ItemGrafico[], titulo = 'Vendas por Vendedor'): Promise<string | null> {
+  async gerarGraficoVendedores(itens: ItemGrafico[], titulo = 'Vendas por Vendedor'): Promise<Buffer | null> {
     try { return await barrasH(titulo, itens, 'vendedores'); }
     catch (e) { logger.error('Erro gráfico vendedores:', e); return null; }
   }
 
   /** Fabricantes — barras horizontais */
-  async gerarGraficoFabricantes(itens: ItemGrafico[], titulo = 'Vendas por Fabricante'): Promise<string | null> {
+  async gerarGraficoFabricantes(itens: ItemGrafico[], titulo = 'Vendas por Fabricante'): Promise<Buffer | null> {
     try { return await barrasH(titulo, itens, 'fabricantes'); }
     catch (e) { logger.error('Erro gráfico fabricantes:', e); return null; }
   }
 
   /** Vendas dia a dia — linha com área (série temporal contínua) */
-  async gerarGraficoVendasDia(series: ItemSerie[], titulo = 'Vendas por Dia'): Promise<string | null> {
+  async gerarGraficoVendasDia(series: ItemSerie[], titulo = 'Vendas por Dia'): Promise<Buffer | null> {
     try { return await linha(titulo, series, 'vendas-dia'); }
     catch (e) { logger.error('Erro gráfico vendas dia:', e); return null; }
   }
 
   /** Vendas por semana — barras verticais (períodos discretos) */
-  async gerarGraficoVendasSemana(series: ItemSerie[], titulo = 'Vendas por Semana'): Promise<string | null> {
+  async gerarGraficoVendasSemana(series: ItemSerie[], titulo = 'Vendas por Semana'): Promise<Buffer | null> {
     try { return await barrasV(titulo, series, 'vendas-semana'); }
     catch (e) { logger.error('Erro gráfico vendas semana:', e); return null; }
   }
 
   /** Vendas por mês — barras verticais (até 12 colunas) */
-  async gerarGraficoVendasMes(series: ItemSerie[], titulo = 'Vendas por Mês'): Promise<string | null> {
+  async gerarGraficoVendasMes(series: ItemSerie[], titulo = 'Vendas por Mês'): Promise<Buffer | null> {
     try { return await barrasV(titulo, series, 'vendas-mes'); }
     catch (e) { logger.error('Erro gráfico vendas mês:', e); return null; }
   }

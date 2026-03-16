@@ -7,6 +7,6 @@ export interface BotProcessResult {
     texto: string;
     emoji?: string;
   }[];
-  grafico?: string | null;
+  grafico?: Buffer | null;
   proximoEstado: EstadoBot;
 }

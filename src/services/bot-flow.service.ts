@@ -79,7 +79,7 @@ class BotFlowService {
   getMenuComercial(nomeUsuario: string = ''): MensagemBotResponse {
     const saudacao = nomeUsuario ? `🏪 *${nomeUsuario}* — Menu Comercial\n\n` : `🏪 *Menu Comercial*\n\n`;
     return {
-      resposta: `O que deseja consultar?\n`,
+      resposta: `${saudacao}O que deseja consultar?\n`,
       opcoes: [
         { id: '1', texto: 'Vendas por Supervisor',  emoji: '👔' },
         { id: '2', texto: 'Vendas por Vendedor',    emoji: '👥' },
@@ -178,10 +178,11 @@ class BotFlowService {
     let texto = `🏭 *Vendas por Fabricante*\n\n`;
 
     if (fabricantes.length > 0) {
-      fabricantes.forEach((f: any, idx: number) => {
-        texto += `${idx + 1} - ${(f.NomeFabricante ?? '').trim()} — R$ ${formatarNumero(f.TotalVendas)}\n`;
-      });
       const total = fabricantes.reduce((s: number, f: any) => s + f.TotalVendas, 0);
+      fabricantes.forEach((f: any, idx: number) => {
+        const pct = total > 0 ? ((f.TotalVendas / total) * 100).toFixed(1) : '0.0';
+        texto += `${idx + 1} - ${(f.NomeFabricante ?? '').trim()} — R$ ${formatarNumero(f.TotalVendas)} (${pct}%)\n`;
+      });
       texto += `\n💰 *TOTAL GERAL: R$ ${formatarNumero(total)}*`;
     } else {
       texto += '_Nenhum fabricante carregado._\n';
@@ -560,16 +561,13 @@ class BotFlowService {
     let texto = `📊 *Vendas por Supervisor*\n\n`;
 
     SUPERVISORES.forEach(sup => {
-      const s = carregados.find((v: any) =>
-        v.NomeSetor?.toUpperCase().includes(sup.nome.toUpperCase()) ||
-        sup.nome.toUpperCase().includes(v.NomeSetor?.toUpperCase())
-      );
-      if (s) {
-        texto += `${sup.id} - ${s.NomeSetor} — R$ ${this.fmt(s.TotalVendas)}\n`;
-      } else {
-        // Supervisor sem dados no período — exibe com zero
-        texto += `${sup.id} - ${sup.nome} — R$ 0,00\n`;
-      }
+      const nomeSup = sup.nome.toUpperCase();
+      const s = carregados.find((v: any) => {
+        const col = (v.NomeSupervisor ?? v.NomeSetor ?? v.Supervisor ?? '').toUpperCase().trim();
+        return col === nomeSup;
+      });
+      const total = s ? (s.TotalVendas ?? 0) : 0;
+      texto += `${sup.id} - ${sup.nome} — R$ ${this.fmt(total)}\n`;
     });
 
     texto += `\nDeseja análise de algum supervisor? *Digite o número (1-${SUPERVISORES.length})* ou *0* para voltar:`;

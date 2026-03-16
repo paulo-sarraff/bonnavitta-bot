@@ -4,7 +4,7 @@ import logger from '../utils/logger.js';
 
 // ✅ INTERFACES EXISTENTES
 interface VendasPorSupervisor {
-  NomeSetor: string;
+  NomeSupervisor: string;
   QuantidadePedidos: number;
   QuantidadeVendedores: number;
   TotalVendas: number;
@@ -406,12 +406,23 @@ class VendasService {
       request.input('SetorClientes', sql.Int, setorClientes);
 
       const result = await request.query(`
+        ;WITH VendasUnificadas AS (
+          SELECT DataPreVenda AS DataRef, Numero AS NumeroRef,
+                 NomeFabricante, Setor_Cliente, ValorFinalPV AS Valor
+          FROM [BonnaVitta.Log].dbo.vw_fPreVendas
+          WHERE NomeSupervisor <> 'LOJA'
+          UNION ALL
+          SELECT DataPed AS DataRef, NumeroPed AS NumeroRef,
+                 Fabricante AS NomeFabricante, Setor_Cliente, ValorFinal AS Valor
+          FROM [BonnaVitta.Log].dbo.vw_fVendas
+          WHERE NomeSupervisor = 'LOJA'
+        )
         SELECT
           NomeFabricante,
-          SUM(ValorFinalPV) AS TotalVendas,
-          COUNT(DISTINCT Numero) AS QuantidadePedidos
-        FROM [BonnaVitta.Log].dbo.vw_fPreVendas
-        WHERE CAST(DataPreVenda AS DATE) BETWEEN @DataInicio AND @DataFim
+          CAST(SUM(Valor) AS DECIMAL(18,2))          AS TotalVendas,
+          COUNT(DISTINCT NumeroRef)                   AS QuantidadePedidos
+        FROM VendasUnificadas
+        WHERE CAST(DataRef AS DATE) BETWEEN @DataInicio AND @DataFim
           AND Setor_Cliente = @SetorClientes
         GROUP BY NomeFabricante
         ORDER BY TotalVendas DESC
@@ -606,7 +617,7 @@ class VendasService {
     let resposta = `📊 *Vendas por Supervisor*\n\n`;
 
     vendas.forEach((venda) => {
-      resposta += `*${venda.NomeSetor}*\n`;
+      resposta += `*${venda.NomeSupervisor}*\n`;
       resposta += `  💰 Total de Vendas: R$ ${this.formatarMoeda(venda.TotalVendas)}\n`;
       resposta += `  🎫 Ticket Médio: R$ ${this.formatarMoeda(venda.TicketMedio)}\n`;
       resposta += `  📦 Pedidos: ${venda.QuantidadePedidos}\n`;
