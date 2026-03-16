@@ -49,10 +49,14 @@ export function ultimoDiaMes(ano: number, mes: number): number {
 
 /**
  * Retorna o dia da semana ISO (1=Seg … 7=Dom) de uma string YYYY-MM-DD.
+ * Usa Intl para não depender do timezone do servidor.
  */
 function diaDaSemana(dateStr: string): number {
+  // 'en-US' weekday narrow: Sun=0 não existe — usamos Intl para obter o nome
+  // e mapeamos para ISO. Alternativa mais simples: dia da semana via UTC puro.
   const [ano, mes, dia] = dateStr.split('-').map(Number);
-  const dow = new Date(ano, mes - 1, dia).getDay(); // 0=Dom … 6=Sab
+  // Date.UTC garante zero dependência de timezone local
+  const dow = new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay(); // 0=Dom … 6=Sab
   return dow === 0 ? 7 : dow;
 }
 

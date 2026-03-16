@@ -61,7 +61,7 @@ export class WebhookController {
         await telegramService.enviarMensagem(chatId, mensagemFormatada);
       }
 
-      // Envia gráfico como foto separada, se houver
+      // Envia gráfico como foto (buffer direto — sem URL intermediária)
       if (resultado?.grafico) {
         await telegramService.enviarFoto(chatId, resultado.grafico);
       }

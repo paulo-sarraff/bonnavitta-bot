@@ -1,6 +1,5 @@
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { Request, Response } from 'express';
-import path from 'path';
 import { sessionService } from '../services/session.service.js';
 import { botFlowService, SUPERVISORES } from '../services/bot-flow.service.js';
 import { vendasService } from '../services/vendas.service.js';
@@ -10,7 +9,6 @@ import { EstadoBot } from '../models/schemas.js';
 import { BotProcessResult } from '../models/bot-response.js';
 import { authService } from '../services/auth.service.js';
 import { usuariosCadastrados } from '../config/usuarios-cadastrados.js';
-import config from '../config/index.js';
 import {
   formatarNumero, formatarData, calcDiaSemana,
   buildDateString, addDays,
@@ -31,37 +29,35 @@ export class BotController {
   async processarMensagem(req: AuthRequest): Promise<BotProcessResult> {
     try {
       const { canal, chatId, mensagem, usuarioId } = req.body ?? {};
-      if (!canal || !chatId || !mensagem || !usuarioId) throw new Error('canal, chatId, mensagem e usuarioId são obrigatórios');
+      if (!canal || !chatId || !mensagem || !usuarioId) throw new Error('canal, chatId, mensagem e usuarioId sao obrigatorios');
 
       logger.info(`Mensagem recebida de ${usuarioId}: ${mensagem}`);
 
       let sessao = await sessionService.obterSessao(chatId, canal as 'telegram' | 'whatsapp');
       if (!sessao) sessao = await sessionService.criarSessao(usuarioId, canal as 'telegram' | 'whatsapp', chatId, '');
-      if (!sessao) throw new Error('Falha ao obter ou criar sessão do usuário');
+      if (!sessao) throw new Error('Falha ao obter ou criar sessao do usuario');
 
-      // ── AGUARDANDO CPF ──────────────────────────────────────────────────────
       if (sessao.estadoAtual === EstadoBot.AGUARDANDO_CPF) {
         const cpfLimpo = mensagem.trim().replace(/\D/g, '');
-        if (cpfLimpo.length !== 11) return { resposta: '❌ CPF inválido. Informe um CPF com 11 dígitos.\n\nExemplo: 12345678910', proximoEstado: EstadoBot.AGUARDANDO_CPF };
+        if (cpfLimpo.length !== 11) return { resposta: '❌ CPF invalido. Informe um CPF com 11 digitos.\n\nExemplo: 12345678910', proximoEstado: EstadoBot.AGUARDANDO_CPF };
         const usuarioComCPF = usuariosCadastrados.find(u => u.cpf === cpfLimpo);
-        if (!usuarioComCPF) return { resposta: '❌ CPF não encontrado. Verifique e tente novamente.\n\nExemplo: 12345678910', proximoEstado: EstadoBot.AGUARDANDO_CPF };
-        if (!usuarioComCPF.ativo) return { resposta: '❌ Seu usuário está inativo. Entre em contato com o administrador.', proximoEstado: EstadoBot.AGUARDANDO_CPF };
+        if (!usuarioComCPF) return { resposta: '❌ CPF nao encontrado. Verifique e tente novamente.\n\nExemplo: 12345678910', proximoEstado: EstadoBot.AGUARDANDO_CPF };
+        if (!usuarioComCPF.ativo) return { resposta: '❌ Seu usuario esta inativo. Entre em contato com o administrador.', proximoEstado: EstadoBot.AGUARDANDO_CPF };
         await sessionService.atualizarSessaoCompleta(sessao.id, { estadoAtual: EstadoBot.AGUARDANDO_TELEFONE, dadosContexto: { cpfTemporario: cpfLimpo } });
         return { resposta: '✅ CPF recebido!\n\n📞 Agora informe seu telefone:\n\nExemplo: 92999999999', proximoEstado: EstadoBot.AGUARDANDO_TELEFONE };
       }
 
-      // ── AGUARDANDO TELEFONE ─────────────────────────────────────────────────
       if (sessao.estadoAtual === EstadoBot.AGUARDANDO_TELEFONE) {
         const telefoneLimpo = mensagem.trim().replace(/\D/g, '');
-        if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) return { resposta: '❌ Telefone inválido. Informe um telefone com 10 ou 11 dígitos.\n\nExemplo: 92999999999', proximoEstado: EstadoBot.AGUARDANDO_TELEFONE };
+        if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) return { resposta: '❌ Telefone invalido. Informe um telefone com 10 ou 11 digitos.\n\nExemplo: 92999999999', proximoEstado: EstadoBot.AGUARDANDO_TELEFONE };
         const cpfTemporario = sessao.dadosContexto?.cpfTemporario;
         if (!cpfTemporario) return { resposta: '❌ Erro ao processar login. Tente novamente.\n\n📱 Informe seu CPF:', proximoEstado: EstadoBot.AGUARDANDO_CPF };
         const usuarioValidado = usuariosCadastrados.find(u => u.cpf === cpfTemporario && u.telefone === telefoneLimpo);
         if (!usuarioValidado) {
           await sessionService.atualizarSessaoCompleta(sessao.id, { estadoAtual: EstadoBot.AGUARDANDO_CPF, dadosContexto: {} });
-          return { resposta: '❌ CPF ou telefone inválidos. Tente novamente.\n\n📱 Informe seu CPF:', proximoEstado: EstadoBot.AGUARDANDO_CPF };
+          return { resposta: '❌ CPF ou telefone invalidos. Tente novamente.\n\n📱 Informe seu CPF:', proximoEstado: EstadoBot.AGUARDANDO_CPF };
         }
-        if (!usuarioValidado.ativo) return { resposta: '❌ Seu usuário está inativo. Entre em contato com o administrador.', proximoEstado: EstadoBot.AGUARDANDO_CPF };
+        if (!usuarioValidado.ativo) return { resposta: '❌ Seu usuario esta inativo. Entre em contato com o administrador.', proximoEstado: EstadoBot.AGUARDANDO_CPF };
         const token = authService.gerarToken(usuarioValidado);
         const roles = usuarioValidado.roles ?? [];
         const menuInicial = botFlowService.getMenuPrincipal(roles, usuarioValidado.nome);
@@ -70,7 +66,6 @@ export class BotController {
         return { resposta: `✅ Login realizado com sucesso!\n\nBem-vindo, ${usuarioValidado.nome}! 🎉\n\n${menuInicial.resposta}`, opcoes: menuInicial.opcoes, proximoEstado: estadoInicial };
       }
 
-      // ── RESET ───────────────────────────────────────────────────────────────
       const mensagemNorm = mensagem.trim().toLowerCase();
       if (['oi', 'olá', 'ola', 'menu', 'iniciar', 'start'].includes(mensagemNorm)) {
         const usuario = usuariosCadastrados.find(u => u.id === sessao.usuarioId);
@@ -81,7 +76,6 @@ export class BotController {
         return { resposta: menu.resposta, opcoes: menu.opcoes, proximoEstado: estadoReset };
       }
 
-      // ── FLUXO NORMAL ────────────────────────────────────────────────────────
       const usuarioSession = usuariosCadastrados.find(u => u.id === sessao.usuarioId);
       const usuarioRoles   = usuarioSession?.roles ?? [];
       const nomeUsuario    = usuarioSession?.nome ?? '';
@@ -115,13 +109,9 @@ export class BotController {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // PROCESSAMENTO DE CONSULTAS
-  // ─────────────────────────────────────────────────────────────────────────
-
   private async processarConsulta(
     contexto: any, roles: string[], nomeUsuario: string
-  ): Promise<{ texto: string; opcoes?: any[]; grafico: string | null; proximoEstado: EstadoBot; contexto: any }> {
+  ): Promise<{ texto: string; opcoes?: any[]; grafico: Buffer | null; proximoEstado: EstadoBot; contexto: any }> {
     try {
       const { subFluxo, dataInicio } = contexto;
       // ⚠️ TEMPORÁRIO — remove após executar 04_fix_where_cast_date.sql no banco
@@ -135,8 +125,6 @@ export class BotController {
         let texto = `📊 *Vendas por Supervisor*\n`;
         texto += `📅 Período: ${this.fmtPeriodo(contexto.dataInicio, contexto.dataFim)}\n\n`;
 
-        // Itera na ordem fixa dos setores; nome de exibição sempre vem do SUPERVISORES
-        // Match por NomeSupervisor (vw_fPreVendas) — contém exatamente LOJA, FOOD SERVICE, etc.
         SUPERVISORES.forEach(sup => {
           const nomeSup = sup.nome.toUpperCase();
           const v = vendas.find((x: any) => {
@@ -186,8 +174,10 @@ export class BotController {
 
         if (fabricantes.length > 0) {
           texto += `\n*🏭 Fabricantes:*\n`;
+          const totalFab1 = fabricantes.reduce((s: number, f: any) => s + (f.TotalVendas ?? 0), 0);
           fabricantes.forEach((f: any, i: number) => {
-            texto += `  ${i + 1}. ${this.limpar(f.NomeFabricante)} — R$ ${this.fmt(f.TotalVendas)}\n`;
+            const pct = totalFab1 > 0 ? ((f.TotalVendas / totalFab1) * 100).toFixed(1) : '0.0';
+            texto += `  ${i + 1}. ${this.limpar(f.NomeFabricante)} — R$ ${this.fmt(f.TotalVendas)} (${pct}%)\n`;
           });
         }
 
@@ -241,8 +231,10 @@ export class BotController {
 
           if (fabricantes && fabricantes.length > 0) {
             texto += `\n*🏭 Vendas por Fabricante:*\n`;
+            const totalFab2 = fabricantes.reduce((s: number, f: any) => s + (f.TotalVendas ?? 0), 0);
             fabricantes.forEach((f: any, i: number) => {
-              texto += `  ${i + 1}. ${this.limpar(f.NomeFabricante)} — R$ ${this.fmt(f.TotalVendas)}\n`;
+              const pct = totalFab2 > 0 ? ((f.TotalVendas / totalFab2) * 100).toFixed(1) : '0.0';
+              texto += `  ${i + 1}. ${this.limpar(f.NomeFabricante)} — R$ ${this.fmt(f.TotalVendas)} (${pct}%)\n`;
             });
           }
         }
@@ -260,7 +252,7 @@ export class BotController {
         let texto = `📅 *Vendas por Dia*\n`;
         texto += `📅 Período: ${this.fmtPeriodo(contexto.dataInicio, contexto.dataFim)}\n\n`;
 
-        let graficoPath: string | null = null;
+        let grafico: Buffer | null = null;
 
         if (vendas.length === 0) {
           texto += 'Nenhum dado encontrado para o período.';
@@ -269,30 +261,44 @@ export class BotController {
           if (!modoGrafico) {
             texto += grupos.map(g => `*${g.label}*: R$ ${this.fmt(g.valor)} | Pedidos: ${g.pedidos}`).join('\n') + '\n';
           } else {
-            graficoPath = await chartService.gerarGraficoVendasMes(grupos, `Vendas Mensais — ${contexto.dataInicio.slice(0, 4)}`);
+            grafico = await chartService.gerarGraficoVendasMes(grupos, `Vendas Mensais — ${contexto.dataInicio.slice(0, 4)}`);
           }
         } else if (agrupamentoDia === 'ano_semanas' || agrupamentoDia === 'mes_semanas') {
           const grupos = this.agruparSemanas(vendas);
           if (!modoGrafico) {
             texto += grupos.map(g => `*${g.label}*: R$ ${this.fmt(g.valor)} | Pedidos: ${g.pedidos}`).join('\n') + '\n';
           } else {
-            graficoPath = await chartService.gerarGraficoVendasSemana(grupos, 'Vendas por Semana');
+            grafico = await chartService.gerarGraficoVendasSemana(grupos, 'Vendas por Semana');
           }
         } else {
-          // semana_dias / mes_dias — linha com área, dia a dia
-          const series: ItemSerie[] = [];
+          // semana_dias / mes_dias
+          const vendasIdx: Record<string, { TotalVendas: number; QuantidadePedidos: number }> = {};
           vendas.forEach((v: any) => {
-            const dataObj: Date = v.DataPreVenda instanceof Date ? v.DataPreVenda : new Date(v.DataPreVenda);
-            const data = dataObj.toLocaleDateString('pt-BR', { timeZone: 'America/Manaus' });
-            if (!modoGrafico) {
-              const dia = calcDiaSemana(dataObj);
-              texto += `*${data}* (${dia})\n`;
-              texto += `  Venda: R$ ${this.fmt(v.TotalVendas)} | Pedidos: ${v.QuantidadePedidos}\n`;
-            }
-            series.push({ label: data, valor: v.TotalVendas });
+            const d: Date = v.DataPreVenda instanceof Date ? v.DataPreVenda : new Date(v.DataPreVenda);
+            const chave = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+            vendasIdx[chave] = { TotalVendas: v.TotalVendas, QuantidadePedidos: v.QuantidadePedidos };
           });
+
+          const series: ItemSerie[] = [];
+          let cursor = contexto.dataInicio;
+          while (cursor <= contexto.dataFim) {
+            const [yyyy, mesC, diaC] = cursor.split('-').map(Number);
+            const dd      = String(diaC).padStart(2, '0');
+            const mm      = String(mesC).padStart(2, '0');
+            const dataFmt = `${dd}/${mm}/${yyyy}`;
+            const reg     = vendasIdx[cursor] ?? { TotalVendas: 0, QuantidadePedidos: 0 };
+
+            if (!modoGrafico) {
+              const dataLocal = new Date(Date.UTC(yyyy, mesC - 1, diaC, 12, 0, 0));
+              const dia = calcDiaSemana(dataLocal);
+              texto += `*${dataFmt}* (${dia})\n`;
+              texto += `  Venda: R$ ${this.fmt(reg.TotalVendas)} | Pedidos: ${reg.QuantidadePedidos}\n`;
+            }
+            series.push({ label: dataFmt, valor: reg.TotalVendas });
+            cursor = addDays(cursor, 1);
+          }
           if (modoGrafico) {
-            graficoPath = await chartService.gerarGraficoVendasDia(series, 'Vendas por Dia');
+            grafico = await chartService.gerarGraficoVendasDia(series, 'Vendas por Dia');
           }
         }
 
@@ -300,7 +306,7 @@ export class BotController {
         texto += `\n💰 *TOTAL: R$ ${this.fmt(totalGeral)}*`;
 
         const pergunta = botFlowService.getPerguntaOutroPeriodoDia();
-        return { texto: texto + `\n\n${pergunta.resposta}`, opcoes: pergunta.opcoes, grafico: this.toUrl(graficoPath), proximoEstado: EstadoBot.EXIBINDO_RESULTADO_DIA, contexto };
+        return { texto: texto + `\n\n${pergunta.resposta}`, opcoes: pergunta.opcoes, grafico, proximoEstado: EstadoBot.EXIBINDO_RESULTADO_DIA, contexto };
       }
 
       // ── 6. Lista de fabricantes ───────────────────────────────────────────
@@ -308,14 +314,13 @@ export class BotController {
         const vendas = await vendasService.getVendasPorFabricante(dataInicio, dataFim);
         const novoContexto = { ...contexto, fabricantesCarregados: vendas };
 
-        // Gráfico: barras horizontais — ranking de fabricantes
         const itensGrafico: ItemGrafico[] = vendas.map((v: any) => ({ label: (v.NomeFabricante ?? '').trim(), valor: v.TotalVendas }));
-        const graficoPath = itensGrafico.length
+        const grafico: Buffer | null = itensGrafico.length
           ? await chartService.gerarGraficoFabricantes(itensGrafico, `Fabricantes — ${this.fmtPeriodo(contexto.dataInicio, contexto.dataFim)}`)
           : null;
 
         const pergunta = botFlowService.montarPerguntaFabricante(novoContexto);
-        return { texto: pergunta.resposta, grafico: this.toUrl(graficoPath), proximoEstado: EstadoBot.EXIBINDO_LISTA_FABRICANTE, contexto: novoContexto };
+        return { texto: pergunta.resposta, grafico, proximoEstado: EstadoBot.EXIBINDO_LISTA_FABRICANTE, contexto: novoContexto };
       }
 
       // ── 7. Detalhe de fabricante ──────────────────────────────────────────
@@ -352,10 +357,6 @@ export class BotController {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // HELPERS PRIVADOS
-  // ─────────────────────────────────────────────────────────────────────────
-
   private fmt(valor: number): string { return formatarNumero(valor); }
   private limpar(v: string): string  { return (v ?? '').trim(); }
 
@@ -365,24 +366,14 @@ export class BotController {
     return di === df ? di : `${di} a ${df}`;
   }
 
-  /** Converte caminho absoluto de arquivo em URL pública acessível pelo cliente */
-  private toUrl(caminhoArquivo: string | null): string | null {
-    if (!caminhoArquivo) return null;
-    const nome = path.basename(caminhoArquivo);
-    const porta = (config as any)?.api?.port ?? 8000;
-    const base  = process.env.API_BASE_URL ?? `http://localhost:${porta}`;
-    return `${base}/api/bot/charts/${nome}`;
-  }
-
-  /** Agrupa registros diários por mês, retorna array ordenado cronologicamente */
   private agruparMeses(vendas: any[]): (ItemSerie & { pedidos: number })[] {
     const acc: Record<string, { valor: number; pedidos: number }> = {};
     const nomesMes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
     vendas.forEach(v => {
       const d: Date = v.DataPreVenda instanceof Date ? v.DataPreVenda : new Date(v.DataPreVenda);
-      const p = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Manaus', year: 'numeric', month: '2-digit' }).format(d);
-      const [mm, aaaa] = p.split('/');
+      const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const aaaa = String(d.getUTCFullYear());
       const chave = `${aaaa}-${mm}`;
       if (!acc[chave]) acc[chave] = { valor: 0, pedidos: 0 };
       acc[chave].valor   += v.TotalVendas;
@@ -397,22 +388,22 @@ export class BotController {
       });
   }
 
-  /** Agrupa registros diários por semana ISO (Seg–Dom), retorna array ordenado */
   private agruparSemanas(vendas: any[]): (ItemSerie & { pedidos: number })[] {
     const acc: Record<string, { valor: number; pedidos: number; inicioStr: string; fimStr: string }> = {};
     const f2 = (n: number) => String(n).padStart(2, '0');
 
     vendas.forEach(v => {
       const d: Date = v.DataPreVenda instanceof Date ? v.DataPreVenda : new Date(v.DataPreVenda);
-      const localStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Manaus' }).format(d);
-      const [ano, mes, dia] = localStr.split('-').map(Number);
-      const dow    = new Date(ano, mes - 1, dia).getDay();
+      const ano = d.getUTCFullYear();
+      const mes = d.getUTCMonth() + 1;
+      const dia = d.getUTCDate();
+      const dow    = new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay();
       const isoDay = dow === 0 ? 7 : dow;
-      const ini    = new Date(ano, mes - 1, dia - (isoDay - 1));
-      const fim    = new Date(ano, mes - 1, dia - (isoDay - 1) + 6);
-      const chave  = buildDateString(ini.getFullYear(), ini.getMonth() + 1, ini.getDate());
-      const inicioStr = `${f2(ini.getDate())}/${f2(ini.getMonth()+1)}/${ini.getFullYear()}`;
-      const fimStr    = `${f2(fim.getDate())}/${f2(fim.getMonth()+1)}/${fim.getFullYear()}`;
+      const ini    = new Date(Date.UTC(ano, mes - 1, dia - (isoDay - 1)));
+      const fim    = new Date(Date.UTC(ano, mes - 1, dia - (isoDay - 1) + 6));
+      const chave  = buildDateString(ini.getUTCFullYear(), ini.getUTCMonth() + 1, ini.getUTCDate());
+      const inicioStr = `${f2(ini.getUTCDate())}/${f2(ini.getUTCMonth()+1)}/${ini.getUTCFullYear()}`;
+      const fimStr    = `${f2(fim.getUTCDate())}/${f2(fim.getUTCMonth()+1)}/${fim.getUTCFullYear()}`;
 
       if (!acc[chave]) acc[chave] = { valor: 0, pedidos: 0, inicioStr, fimStr };
       acc[chave].valor   += v.TotalVendas;

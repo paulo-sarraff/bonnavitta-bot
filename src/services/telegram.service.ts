@@ -32,21 +32,28 @@ class TelegramService {
   }
 
   /**
-   * Envia foto via Telegram
+   * Envia foto via Telegram — aceita Buffer (multipart) ou URL pública (JSON).
+   * Buffer é enviado via multipart usando Blob nativo do Node 18+.
    */
-  async enviarFoto(chatId: string, fotoUrl: string, legenda?: string): Promise<boolean> {
+  async enviarFoto(chatId: string, foto: Buffer | string, legenda?: string): Promise<boolean> {
     try {
-      const payload = {
-        chat_id: chatId,
-        photo: fotoUrl,
-        caption: legenda || '',
-        parse_mode: 'HTML',
-      };
+      if (Buffer.isBuffer(foto)) {
+        // Usa FormData e Blob nativos do Node 18+ — sem dependência externa
+        const form = new (globalThis as any).FormData();
+        form.append('chat_id', chatId);
+        form.append('photo', new Blob([foto], { type: 'image/png' }), 'grafico.png');
+        if (legenda) form.append('caption', legenda);
 
-      const response = await axios.post(`${this.baseUrl}/sendPhoto`, payload);
+        const response = await axios.post(`${this.baseUrl}/sendPhoto`, form);
 
-      logger.info(`Foto enviada para Telegram (${chatId})`);
-      return response.data.ok;
+        logger.info(`Foto (buffer) enviada para Telegram (${chatId})`);
+        return response.data.ok;
+      } else {
+        const payload = { chat_id: chatId, photo: foto, caption: legenda || '', parse_mode: 'HTML' };
+        const response = await axios.post(`${this.baseUrl}/sendPhoto`, payload);
+        logger.info(`Foto (url) enviada para Telegram (${chatId})`);
+        return response.data.ok;
+      }
     } catch (error) {
       logger.error('Erro ao enviar foto Telegram:', error);
       return false;
