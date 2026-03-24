@@ -30,7 +30,10 @@ const CORES = [
 const CORES_BG = CORES.map(c => c + 'CC'); // 80% opacidade
 
 // ── Renderer singleton ───────────────────────────────────────────────────────
-const renderer = new ChartJSNodeCanvas({ width: W, height: H, backgroundColour: 'white' });
+const renderer = new ChartJSNodeCanvas({
+  width: W, height: H, backgroundColour: 'white',
+  plugins: { modern: ['chartjs-plugin-datalabels'] },
+});
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
 export interface ItemGrafico  { label: string; valor: number }
@@ -39,10 +42,15 @@ export interface ItemSerie    { label: string; valor: number }
 // ── Helpers internos ──────────────────────────────────────────────────────────
 
 function fmtBRL(v: number): string {
-  // Formata sem casas decimais para não poluir os eixos
+  // Versão abreviada para eixos
   if (v >= 1_000_000) return `R$${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 1_000)     return `R$${(v / 1_000).toFixed(0)}k`;
   return `R$${v.toFixed(0)}`;
+}
+
+function fmtBRLFull(v: number): string {
+  // Versão completa para labels sobre barras/pontos
+  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function chartsDir(): string {
@@ -68,7 +76,7 @@ async function barrasH(titulo: string, itens: ItemGrafico[], prefixo: string): P
   // Altura dinâmica para listas longas
   const alturaFlex = Math.max(H, labels.length * 46 + 140);
   const rend = alturaFlex !== H
-    ? new ChartJSNodeCanvas({ width: W, height: alturaFlex, backgroundColour: 'white' })
+    ? new ChartJSNodeCanvas({ width: W, height: alturaFlex, backgroundColour: 'white', plugins: { modern: ['chartjs-plugin-datalabels'] } })
     : renderer;
 
   const config: ChartConfiguration = {
@@ -87,10 +95,19 @@ async function barrasH(titulo: string, itens: ItemGrafico[], prefixo: string): P
     options: {
       indexAxis: 'y',
       responsive: false,
+      layout: { padding: { right: 90 } },
       plugins: {
         title: { display: true, text: titulo, font: { size: 15, weight: 'bold' }, padding: { bottom: 14 } },
         legend: { display: false },
-      },
+        datalabels: {
+          anchor: 'end',
+          align: 'right',
+          formatter: (v: number) => fmtBRLFull(v),
+          font: { size: 11, weight: 'bold' },
+          color: '#1F2937',
+          clip: false,
+        },
+      } as any,
       scales: {
         x: {
           beginAtZero: true,
@@ -129,10 +146,20 @@ async function barrasV(titulo: string, series: ItemSerie[], prefixo: string): Pr
     },
     options: {
       responsive: false,
+      layout: { padding: { top: 28 } },
       plugins: {
         title: { display: true, text: titulo, font: { size: 15, weight: 'bold' }, padding: { bottom: 14 } },
         legend: { display: false },
-      },
+        datalabels: {
+          anchor: 'end',
+          align: 'top',
+          formatter: (v: number) => fmtBRLFull(v),
+          font: { size: 10, weight: 'bold' },
+          color: '#1F2937',
+          rotation: -35,
+          clip: false,
+        },
+      } as any,
       scales: {
         x: { ticks: { font: { size: 11 }, maxRotation: 35 }, grid: { display: false } },
         y: {
@@ -170,10 +197,19 @@ async function linha(titulo: string, series: ItemSerie[], prefixo: string): Prom
     },
     options: {
       responsive: false,
+      layout: { padding: { top: 28 } },
       plugins: {
         title: { display: true, text: titulo, font: { size: 15, weight: 'bold' }, padding: { bottom: 14 } },
         legend: { display: false },
-      },
+        datalabels: {
+          anchor: 'top',
+          align: 'top',
+          formatter: (v: number) => fmtBRLFull(v),
+          font: { size: series.length > 14 ? 8 : 10, weight: 'bold' },
+          color: '#1F2937',
+          clip: false,
+        },
+      } as any,
       scales: {
         x: {
           ticks: { font: { size: series.length > 20 ? 9 : 11 }, maxRotation: 45 },

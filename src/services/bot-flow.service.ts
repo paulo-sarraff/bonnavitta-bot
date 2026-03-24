@@ -43,7 +43,7 @@ class BotFlowService {
 
     if (isAdminOrDiretoria) {
       return {
-        resposta: `O que deseja consultar?\n`,
+        resposta: `🏪 O que deseja consultar?\n`,
         opcoes: [
           { id: '1', texto: 'Menu Comercial', emoji: '📊' },
           { id: '0', texto: 'Sair', emoji: '👋' },
@@ -180,7 +180,7 @@ class BotFlowService {
     if (fabricantes.length > 0) {
       const total = fabricantes.reduce((s: number, f: any) => s + f.TotalVendas, 0);
       fabricantes.forEach((f: any, idx: number) => {
-        const pct = total > 0 ? ((f.TotalVendas / total) * 100).toFixed(1) : '0.0';
+        const pct = total > 0 ? ((f.TotalVendas / total) * 100).toFixed(2) : '0.00';
         texto += `${idx + 1} - ${(f.NomeFabricante ?? '').trim()} — R$ ${formatarNumero(f.TotalVendas)} (${pct}%)\n`;
       });
       texto += `\n💰 *TOTAL GERAL: R$ ${formatarNumero(total)}*`;
