@@ -176,7 +176,7 @@ export class BotController {
           texto += `\n*🏭 Fabricantes:*\n`;
           const totalFab1 = fabricantes.reduce((s: number, f: any) => s + (f.TotalVendas ?? 0), 0);
           fabricantes.forEach((f: any, i: number) => {
-            const pct = totalFab1 > 0 ? ((f.TotalVendas / totalFab1) * 100).toFixed(1) : '0.0';
+            const pct = totalFab1 > 0 ? ((f.TotalVendas / totalFab1) * 100).toFixed(2) : '0.00';
             texto += `  ${i + 1}. ${this.limpar(f.NomeFabricante)} — R$ ${this.fmt(f.TotalVendas)} (${pct}%)\n`;
           });
         }
@@ -233,7 +233,7 @@ export class BotController {
             texto += `\n*🏭 Vendas por Fabricante:*\n`;
             const totalFab2 = fabricantes.reduce((s: number, f: any) => s + (f.TotalVendas ?? 0), 0);
             fabricantes.forEach((f: any, i: number) => {
-              const pct = totalFab2 > 0 ? ((f.TotalVendas / totalFab2) * 100).toFixed(1) : '0.0';
+              const pct = totalFab2 > 0 ? ((f.TotalVendas / totalFab2) * 100).toFixed(2) : '0.00';
               texto += `  ${i + 1}. ${this.limpar(f.NomeFabricante)} — R$ ${this.fmt(f.TotalVendas)} (${pct}%)\n`;
             });
           }
@@ -326,7 +326,8 @@ export class BotController {
       // ── 7. Detalhe de fabricante ──────────────────────────────────────────
       if (subFluxo === 'detalhe_fabricante') {
         const { nomeFabricante } = contexto;
-        const detalhe = await vendasService.getDetalheFabricante(dataInicio, dataFim, nomeFabricante);
+        const detalhe  = await vendasService.getDetalheFabricante(dataInicio, dataFim, nomeFabricante);
+        const produtos = await vendasService.getDetalhesVendasPorFabricante(dataInicio, dataFim, nomeFabricante);
 
         let texto = '';
         if (!detalhe || !detalhe.NomeFabricante) {
@@ -340,6 +341,15 @@ export class BotController {
           texto += `🏪 Clientes: ${detalhe.QuantidadeClientes}\n`;
           texto += `🏆 Produto top: ${this.limpar(detalhe.ProdutoMaisVendido)}\n`;
           texto += `📊 Qtd vendida: ${detalhe.QuantidadeProdutoMaisVendido} vol.\n`;
+
+          if (produtos && produtos.length > 0) {
+            texto += `\n*📦 Produtos:*\n`;
+            const totalProd = produtos.reduce((s: number, p: any) => s + (p.TotalVendas ?? 0), 0);
+            produtos.forEach((p: any, i: number) => {
+              const pct = totalProd > 0 ? ((p.TotalVendas / totalProd) * 100).toFixed(2) : '0.00';
+              texto += `  ${i + 1}. ${this.limpar(p.NomeProduto ?? p.Produto)} — R$ ${this.fmt(p.TotalVendas)} (${pct}%)\n`;
+            });
+          }
         }
 
         const pergunta = botFlowService.getPerguntaOutroFabricante();
