@@ -13,7 +13,7 @@
  */
 
 import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
-import { ChartConfiguration, ChartType } from 'chart.js';
+import type { ChartConfiguration, ChartType } from 'chart.js' with { "resolution-mode": "import" };
 import fs from 'fs';
 import path from 'path';
 import logger from '../utils/logger.js';
